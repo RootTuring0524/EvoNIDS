@@ -1,0 +1,79 @@
+name: Dataset issue
+description: Report a problem with a registered training or replay dataset
+labels: ["data", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Datasets are registered through `POST /api/v1/datasets` and profiled in the
+        background (SHA-256 digest, row count, feature count, missing values, label
+        distribution). Registration never modifies the source file, and once a
+        dataset has a linked training run its digest is immutable lineage.
+
+        **Security notice:** redact real IP addresses from any sample rows or logs
+        before submitting.
+  - type: input
+    id: dataset-id
+    attributes:
+      label: Dataset ID
+      description: The `id` of the registered dataset record.
+      placeholder: e.g. DS-CIC-2017
+    validations:
+      required: true
+  - type: input
+    id: dataset-version
+    attributes:
+      label: Dataset version
+      description: The `version` field of the dataset record, if set.
+      placeholder: e.g. original-csv
+    validations:
+      required: false
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue type
+      options:
+        - Profiler failure or timeout
+        - Row count mismatch
+        - Label distribution anomaly
+        - Feature / missing-value anomaly
+        - SHA-256 digest mismatch
+        - Source link broken or wrong
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: sha256
+    attributes:
+      label: SHA-256 digest
+      description: The digest recorded for the dataset (from the dataset record or profiling output).
+      placeholder: e.g. 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+    validations:
+      required: true
+  - type: input
+    id: source-link
+    attributes:
+      label: Source link
+      description: Public URL of the dataset source (`sourceUri` used at registration).
+      placeholder: e.g. https://www.unb.ca/cic/datasets/ids-2017.html
+    validations:
+      required: true
+  - type: textarea
+    id: observed-expected
+    attributes:
+      label: Observed vs expected
+      description: |
+        What the profiler/dataset record reported, and what you expected. Include
+        row counts, label distribution, feature counts or profiler errors as text.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Paste relevant profiler or API log output as text. Redact before pasting:
+        no tokens, no secrets, no real IP addresses.
+      render: shell
+    validations:
+      required: false

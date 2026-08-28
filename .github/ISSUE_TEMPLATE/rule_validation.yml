@@ -1,0 +1,72 @@
+name: Rule validation issue
+description: Report a problem with a candidate rule replay or validation run
+labels: ["rules", "validation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Candidate rules follow the lifecycle author -> validate -> confirm ->
+        approve -> deploy, and validation replays the rule against labeled flows to
+        measure precision, recall, F1 and false-positive rate.
+
+        **Security notice:** redact real IP addresses from sample sets and logs
+        before submitting.
+  - type: input
+    id: rule-id
+    attributes:
+      label: Rule ID
+      placeholder: e.g. RULE-2024-0001
+    validations:
+      required: true
+  - type: input
+    id: run-id
+    attributes:
+      label: Validation run ID
+      description: The identifier of the validation run being reported.
+      placeholder: e.g. VAL-2024-0042
+    validations:
+      required: true
+  - type: textarea
+    id: metrics
+    attributes:
+      label: Replay metrics
+      description: The measured metrics from the validation run, as shown in the console or API.
+      placeholder: |
+        Precision: 
+        Recall: 
+        F1: 
+        False-positive rate: 
+    validations:
+      required: true
+  - type: textarea
+    id: expected-hits
+    attributes:
+      label: Expected hit sample set
+      description: |
+        Which labeled samples/flows should the rule hit (and which should it not)?
+        Describe them as text — no raw captures with real IPs.
+    validations:
+      required: true
+  - type: input
+    id: suricata-version
+    attributes:
+      label: Suricata version
+      description: Version of the Suricata instance that produced the EVE data, if applicable.
+      placeholder: e.g. 7.0.5 (or "not applicable")
+    validations:
+      required: false
+  - type: input
+    id: evaluator-version
+    attributes:
+      label: Evaluator / backend version
+      description: Backend version or commit the evaluation ran on.
+      placeholder: e.g. backend 0.1.0, commit abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Observed vs expected behavior
+      description: What the replay measured versus what the rule was designed to detect.
+    validations:
+      required: true

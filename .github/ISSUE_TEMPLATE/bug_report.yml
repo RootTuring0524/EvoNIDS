@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible problem in the backend, the console or CI
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please search existing issues first.
+
+        **Security notice:** before pasting any log text, redact it — remove tokens,
+        API keys, secrets and replace real IP addresses. Never paste raw EVE/flow
+        captures that embed internal IPs.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Exact steps, commands and inputs needed to reproduce the problem.
+      placeholder: |
+        1. Start the backend with `python -m pip install -e ".[dev,ml]"` then `uvicorn app.main:app`
+        2. Open '...'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: Expected vs actual behavior
+      description: What you expected to happen, and what actually happened.
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11, Ubuntu 24.04, macOS 15
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Python and/or Node versions
+      description: Python version for backend issues, Node + pnpm versions for console issues.
+      placeholder: e.g. Python 3.11.4 / Node 22.x + pnpm 11.13.1
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Console mode
+      description: Which mode was the console running in?
+      options:
+        - Mock API (NUXT_PUBLIC_USE_MOCK_API=true)
+        - Real backend
+        - Both
+        - Not applicable / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Paste relevant log output as text (not screenshots). Redact before pasting:
+        no tokens, no secrets, no real IP addresses.
+      render: shell
+    validations:
+      required: false

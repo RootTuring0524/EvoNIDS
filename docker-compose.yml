@@ -1,0 +1,70 @@
+name: evonids
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-evonids}
+      POSTGRES_USER: ${POSTGRES_USER:-evonids}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - evonids-postgres:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-evonids} -d ${POSTGRES_DB:-evonids}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    environment:
+      EVONIDS_ENVIRONMENT: ${EVONIDS_ENVIRONMENT:-development}
+      EVONIDS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-evonids}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-evonids}
+      EVONIDS_AUTO_CREATE_DB: "false"
+      EVONIDS_CORS_ORIGINS: '["http://localhost:3000"]'
+      EVONIDS_ADMIN_API_TOKEN: ${EVONIDS_ADMIN_API_TOKEN:-}
+      EVONIDS_SENSOR_INGEST_TOKEN: ${EVONIDS_SENSOR_INGEST_TOKEN:-}
+      EVONIDS_DATASET_ROOT: /data/evonids/datasets
+      EVONIDS_MODEL_ARTIFACT_ROOT: /data/evonids/models
+      EVONIDS_TRAINING_CPU_THREADS: ${EVONIDS_TRAINING_CPU_THREADS:-0}
+    volumes:
+      - ./backend/datasets:/data/evonids/datasets:ro
+      - evonids-models:/data/evonids/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./project
+    environment:
+      NUXT_PUBLIC_API_BASE: /api
+      NUXT_PUBLIC_USE_MOCK_API: "false"
+      NUXT_BACKEND_API_BASE: http://api:8000/api/v1
+      NUXT_BACKEND_ADMIN_TOKEN: ${EVONIDS_ADMIN_API_TOKEN:-}
+      NUXT_SENSOR_INGEST_TOKEN: ${EVONIDS_SENSOR_INGEST_TOKEN:-}
+      NUXT_DEEPSEEK_API_BASE: ${NUXT_DEEPSEEK_API_BASE:-}
+      NUXT_DEEPSEEK_API_KEY: ${NUXT_DEEPSEEK_API_KEY:-}
+      NUXT_DEEPSEEK_MODEL: ${NUXT_DEEPSEEK_MODEL:-}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+
+volumes:
+  evonids-postgres:
+  evonids-models:

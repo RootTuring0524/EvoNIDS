@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose an improvement or a new capability for EvoNIDS
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing an improvement. Please search existing issues and
+        Discussions first so we can link related ideas.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem scenario
+      description: What are you trying to achieve, and what currently blocks you?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like to happen? Be as concrete as possible.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you have tried or considered, and why they fall short.
+    validations:
+      required: true
+  - type: dropdown
+    id: contract-scope
+    attributes:
+      label: Does this touch the detection contract or rule lifecycle?
+      description: |
+        The detection contract covers dataset identity, profiling, replay metrics
+        and evaluation protocol. The rule lifecycle covers author -> validate ->
+        confirm -> approve -> deploy transitions.
+      options:
+        - "No"
+        - "Yes - detection contract (datasets, metrics, replay/evaluation)"
+        - "Yes - rule lifecycle (authoring, validation, approval, deployment)"
+        - "Yes - both"
+        - "Not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: contract-justification
+    attributes:
+      label: Additional justification (required if you answered Yes above)
+      description: |
+        If the detection contract or rule lifecycle is involved, explain which
+        contract fields or lifecycle transitions are affected, the migration path,
+        and how regressions will be measured (e.g. same dataset identity, same
+        split protocol, replay metric comparison before/after).
+    validations:
+      required: false

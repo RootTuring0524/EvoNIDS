@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+title: "EvoNIDS: Evidence-Driven Adaptive Network Intrusion Detection System"
+message: >-
+  If you use EvoNIDS in your work, please cite it using this metadata.
+type: software
+authors:
+  - alias: Root
+version: 0.1.0
+date-released: "2026-08-28"
+license: MIT
+repository-code: "https://github.com/USERNAME/EvoNIDS" # replace USERNAME with the actual account before publishing
+abstract: >-
+  EvoNIDS is an evidence-driven adaptive network intrusion detection system
+  that combines a Nuxt 4 operations console with a FastAPI backend for sensor
+  registration, idempotent Suricata EVE ingestion, dataset profiling,
+  reproducible CPU baseline model training, rule lifecycle replay validation,
+  and evidence-grounded alert triage.
+keywords:
+  - intrusion detection
+  - network security
+  - machine learning
+  - Suricata EVE
+  - FastAPI
+  - Nuxt

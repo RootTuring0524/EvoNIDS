@@ -1,0 +1,197 @@
+@import 'tailwindcss';
+
+:root {
+  color-scheme: dark;
+  --background: #0b1018;
+  --surface-1: #111823;
+  --surface-2: #17202c;
+  --surface-3: #1d2836;
+  --overlay: rgba(5, 9, 14, 0.72);
+  --border-subtle: #202b38;
+  --border-default: #2a3746;
+  --border-strong: #3c4c5e;
+  --text-primary: #edf2f7;
+  --text-secondary: #a7b3c2;
+  --text-tertiary: #718096;
+  --text-disabled: #526071;
+  --severity-critical: #ef6471;
+  --severity-high: #f28a62;
+  --severity-medium: #d8a84e;
+  --severity-low: #8395aa;
+  --severity-info: #749dd3;
+  --status-success: #5faf89;
+  --status-warning: #d8a84e;
+  --status-error: #ef6471;
+  --status-unknown: #8a91d8;
+  --accent: #4ea6b4;
+  --accent-strong: #6abcc8;
+  --accent-muted: rgba(78, 166, 180, 0.12);
+  --sidebar: #0e141e;
+  --chart-grid: rgba(131, 149, 170, 0.14);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --background: #edf1f5;
+  --surface-1: #f8fafc;
+  --surface-2: #ffffff;
+  --surface-3: #eef3f7;
+  --overlay: rgba(31, 41, 55, 0.36);
+  --border-subtle: #e1e7ee;
+  --border-default: #cfd8e3;
+  --border-strong: #aebdcc;
+  --text-primary: #192330;
+  --text-secondary: #536274;
+  --text-tertiary: #7c8998;
+  --text-disabled: #a1abb7;
+  --severity-critical: #c83e4e;
+  --severity-high: #cf6239;
+  --severity-medium: #a9791d;
+  --severity-low: #64768a;
+  --severity-info: #3f75b5;
+  --status-success: #397d61;
+  --status-warning: #a9791d;
+  --status-error: #c83e4e;
+  --status-unknown: #6269b6;
+  --accent: #257f8c;
+  --accent-strong: #176b77;
+  --accent-muted: rgba(37, 127, 140, 0.1);
+  --sidebar: #f6f8fb;
+  --chart-grid: rgba(83, 98, 116, 0.15);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+html,
+body,
+#__nuxt {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--background);
+  color: var(--text-primary);
+  font-family: Inter, 'Geist Sans', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
+button,
+a,
+input,
+select,
+[tabindex] {
+  outline: none;
+}
+
+:focus-visible {
+  box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--accent);
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mono {
+  font-family: 'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.page-scroll > * {
+  animation: page-content-in 180ms ease-out both;
+}
+
+@keyframes page-content-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.surface-panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+}
+
+/* Product typography guardrails: dense, but still readable during long SOC shifts. */
+.page-scroll h2,
+.surface-panel h2 {
+  font-size: 16px !important;
+  line-height: 1.35;
+}
+
+.page-scroll h3,
+.surface-panel h3 {
+  font-size: 14px !important;
+  line-height: 1.4;
+}
+
+.page-scroll table th,
+.page-scroll table td {
+  font-size: 13px !important;
+}
+
+.section-label {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.control {
+  min-height: 34px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+}
+
+.control:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

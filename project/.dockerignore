@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+.nuxt
+.output
+node_modules
+test-results
+playwright-report
+*.log
+
