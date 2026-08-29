@@ -28,7 +28,7 @@ EvoNIDS 是面向安全运营团队的网络入侵检测、证据研判与规则
 ### 1. 启动后端
 
 ```powershell
-Set-Location "D:\IDS System\backend"
+Set-Location "<repo-root>\backend"
 .\.venv\Scripts\Activate.ps1
 alembic upgrade head
 uvicorn app.main:app --host 127.0.0.1 --port 8000
@@ -41,7 +41,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000
 在另一个 PowerShell 窗口中执行：
 
 ```powershell
-Set-Location "D:\IDS System\project"
+Set-Location "<repo-root>\project"
 $env:NUXT_PUBLIC_USE_MOCK_API='false'
 $env:NUXT_BACKEND_API_BASE='http://127.0.0.1:8000/api/v1'
 corepack pnpm dev
@@ -87,7 +87,7 @@ NUXT_DEEPSEEK_MODEL=账户实际可用的模型 ID
 ## 生产构建与启动
 
 ```powershell
-Set-Location "D:\IDS System\project"
+Set-Location "<repo-root>\project"
 corepack pnpm validate
 corepack pnpm build
 
@@ -110,7 +110,7 @@ corepack pnpm build     # 生产产物
 后端：
 
 ```powershell
-Set-Location "D:\IDS System\backend"
+Set-Location "<repo-root>\backend"
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check app tests
 ```

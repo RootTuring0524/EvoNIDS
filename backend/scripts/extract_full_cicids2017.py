@@ -1,6 +1,6 @@
 """Full CICIDS2017 extraction: every packet in the WorkingHours captures, no benign downsampling.
 
-Reuses the audited extractor (D:\\IDS System\\backend\\scripts\\extract_cicids2017_flows.py) with:
+Reuses the audited repository extractor scripts/extract_cicids2017_flows.py with:
   * full-day analysis windows -> every packet is parsed into the flow table
   * benign_sample_rate = 1.0       -> no benign downsampling
   * real-time console progress (per 200k packets)
@@ -21,11 +21,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, r"D:\IDS System\backend\scripts")
+sys.path.insert(0, str(HERE))
 
 import extract_cicids2017_flows as extractor  # noqa: E402
 
-DEFAULT_INPUT = Path(r"D:\BaiduNetdiskDownload\CICIDS2017")
+# Directory that contains the official UNB WorkingHours PCAP files (see DATA_CARD.md).
+DEFAULT_INPUT = Path("./data/CICIDS2017")
 DEFAULT_OUTPUT = HERE.parent / "data" / "CICIDS2017" / "cicids2017_pcap_flow_full_v1.csv.gz"
 
 

@@ -15,7 +15,7 @@ import uuid
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-BACKEND_DIR = Path(r"D:\IDS System\backend")
+BACKEND_DIR = HERE.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.services.autoencoder import (  # noqa: E402

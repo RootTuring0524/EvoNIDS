@@ -26,7 +26,7 @@ DeepSeek credentials remain server-only. Never commit `.env` or paste a key into
 `start-demo.ps1` starts the SQLite-backed API and the Nuxt console with one ephemeral in-memory administrator/sensor token. The token is not written to disk. The script imports only `NUXT_DEEPSEEK_API_BASE`, `NUXT_DEEPSEEK_API_KEY` and `NUXT_DEEPSEEK_MODEL` from the uncommitted root `.env`:
 
 ```powershell
-Set-Location "D:\IDS System"   # or your clone location
+Set-Location "<repo-root>"   # or your clone location
 .\start-demo.ps1               # open http://127.0.0.1:3000/overview
 .\stop-demo.ps1
 ```
@@ -101,7 +101,7 @@ This is deliberately a `HistGradientBoostingClassifier` baseline — the benchma
 The bundled database already contains the completed July 2026 baseline and its replay records. To reproduce the complete pipeline later:
 
 ```powershell
-Set-Location "D:\IDS System\backend"
+Set-Location "<repo-root>\backend"
 .\.venv\Scripts\Activate.ps1
 
 python .\scripts\extract_cicids2017_flows.py `
@@ -122,7 +122,7 @@ The derived flow table is a reproducible EvoNIDS research asset, not a byte-for-
 ## Local demo seed
 
 ```powershell
-Set-Location "D:\IDS System\backend"
+Set-Location "<repo-root>\backend"
 .\.venv\Scripts\Activate.ps1
 python .\scripts\seed_demo.py
 ```

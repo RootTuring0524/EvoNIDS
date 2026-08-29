@@ -38,7 +38,7 @@ in-repo extractor `backend/scripts/extract_cicids2017_flows.py` (extractor versi
 Reproduce (from the repo root, backend venv active):
 
 ```powershell
-Set-Location "D:\IDS System\backend"
+Set-Location "<repo-root>\backend"
 python .\scripts\extract_cicids2017_flows.py `
   --input-root <path-to-official-CICIDS2017-captures> `
   --output ".\datasets\CICIDS2017\cicids2017_pcap_flow_research_v1.csv.gz" `

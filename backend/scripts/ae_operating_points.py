@@ -8,6 +8,7 @@ This is a post-hoc diagnostic: thresholds are calibrated on a fresh normal subse
 """
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import time
@@ -16,38 +17,61 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, r"D:\IDS System\backend")
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_DIR))
 from app.services.autoencoder import _clip_float32, model_from_artifact, reconstruction_errors  # noqa: E402
 
-ARTIFACT = Path(r"D:\test-harness\evonids-full-training\artifacts\autoencoder\TRN-AE-FULL-C02138437669\model.joblib")
-CSV = Path(r"D:\test-harness\evonids-full-training\data\CICIDS2017\cicids2017_pcap_flow_full_v1.csv.gz")
-OUT = Path(r"D:\test-harness\evonids-full-training\artifacts\autoencoder\TRN-AE-FULL-C02138437669\operating-points.json")
+DEFAULT_ARTIFACT = BACKEND_DIR / "model-artifacts" / "autoencoder" / "model.joblib"
+DEFAULT_CSV = BACKEND_DIR / "datasets" / "CICIDS2017" / "cicids2017_pcap_flow_full_v1.csv.gz"
+DEFAULT_OUTPUT = BACKEND_DIR / "model-artifacts" / "autoencoder" / "operating-points.json"
 TARGET_FPRS = (0.005, 0.01, 0.02, 0.05, 0.10)
 CALIBRATION_ROWS = 400_000
 HELDOUT_ROWS = 400_000
 SEED = 20260814
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--artifact",
+        type=Path,
+        default=DEFAULT_ARTIFACT,
+        help="trained AutoEncoder artifact (model.joblib), e.g. written by scripts/train_full_autoencoder.py",
+    )
+    parser.add_argument(
+        "--csv",
+        type=Path,
+        default=DEFAULT_CSV,
+        help="full extracted CICIDS2017 flow table used for calibration and evaluation",
+    )
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="where to write operating-points.json")
+    return parser.parse_args()
+
+
 def main() -> None:
+    args = parse_args()
     import joblib
 
+    artifact_path = args.artifact
+    csv_path = args.csv
+    out_path = args.output
     started = time.perf_counter()
     print("=" * 78, flush=True)
     print("EvoNIDS AutoEncoder 多FPR操作点表（基于已训练产物）", flush=True)
-    print(f"artifact : {ARTIFACT}", flush=True)
-    print(f"csv      : {CSV}", flush=True)
+    print(f"artifact : {artifact_path}", flush=True)
+    print(f"csv      : {csv_path}", flush=True)
     print(f"说明     : 阈值在 {CALIBRATION_ROWS:,} 条随机正常流上按 1-FPR 分位校准；", flush=True)
     print(f"          hold-out 正常流 {HELDOUT_ROWS:,} 条 + 全部攻击流独立评估", flush=True)
     print("=" * 78, flush=True)
 
-    artifact = joblib.load(ARTIFACT)
+    artifact = joblib.load(artifact_path)
     model = model_from_artifact(artifact)
     preprocessor = artifact["preprocessor"]
     features = list(artifact["numericFeatures"])
     print(f"[artifact] 特征数={len(features)} 训练阈值={artifact['threshold']:.6f}", flush=True)
 
     print("[load] 读取完整数据集 ...", flush=True)
-    frame = pd.read_csv(CSV, usecols=[*features, "Label"], compression="infer", low_memory=False)
+    frame = pd.read_csv(csv_path, usecols=[*features, "Label"], compression="infer", low_memory=False)
     labels = frame["Label"].astype("string").str.strip()
     print(f"[load] rows={len(frame):,}  elapsed={time.perf_counter() - started:.0f}s", flush=True)
 
@@ -124,9 +148,10 @@ def main() -> None:
         "attackRows": int(len(attack_index)),
         "rows": rows,
     }
-    OUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print("-" * 78, flush=True)
-    print(f"[complete] {OUT}", flush=True)
+    print(f"[complete] {out_path}", flush=True)
     print(f"[complete] elapsed={time.perf_counter() - started:.0f}s", flush=True)
 
 
