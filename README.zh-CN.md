@@ -9,8 +9,7 @@
 ![Node](https://img.shields.io/badge/node-%E2%89%A522-blue)
 ![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.1x-009688)
-<!-- 仓库创建后把 USERNAME 替换为你的 GitHub 账号： -->
-[![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FUSERNAME%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/USERNAME/EvoNIDS/actions)
+[![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FRootTuring0524%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/RootTuring0524/EvoNIDS/actions)
 
 > ⚠️ **诚实性声明**——EvoNIDS 是研究/教学系统，不是生产级安全设备。已知攻击通道当前运行刻意保守的 **HistGradientBoosting CPU 基线**，未知异常通道运行 **PyTorch AutoEncoder**；目标架构 **Flow Transformer（掩码特征建模）规划于 v0.2，尚未训练**。界面中每一条模拟或降级路径都有明确标注——我们从不把 Mock 数字包装成实测结果。
 
@@ -213,7 +212,7 @@ MODEL_CARD.md / DATA_CARD.md   诚实的模型与数据集文档
   title   = {EvoNIDS: Evidence-Driven Adaptive Network Intrusion Detection System},
   year    = {2026},
   version = {0.1.0},
-  url     = {https://github.com/USERNAME/EvoNIDS}
+  url     = {https://github.com/RootTuring0524/EvoNIDS}
 }
 ```
 

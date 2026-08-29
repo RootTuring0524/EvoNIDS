@@ -1,9 +1,8 @@
 blank_issues_enabled: false
 
 contact_links:
-  # TODO: replace OWNER/REPO with the real GitHub repository path when published.
   - name: Questions & Showcase
-    url: https://github.com/OWNER/REPO/discussions
+    url: https://github.com/RootTuring0524/EvoNIDS/discussions
     about:
       Ask usage questions, share lab setups and showcase detections in GitHub Discussions.
       Bug reports and feature requests belong here in Issues.

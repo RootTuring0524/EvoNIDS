@@ -8,7 +8,7 @@ authors:
 version: 0.1.0
 date-released: "2026-08-28"
 license: MIT
-repository-code: "https://github.com/USERNAME/EvoNIDS" # replace USERNAME with the actual account before publishing
+repository-code: "https://github.com/RootTuring0524/EvoNIDS"
 abstract: >-
   EvoNIDS is an evidence-driven adaptive network intrusion detection system
   that combines a Nuxt 4 operations console with a FastAPI backend for sensor

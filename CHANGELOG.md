@@ -134,8 +134,5 @@ identity and split protocol.
   an ephemeral in-memory administrator/sensor token that is never written to
   disk.
 
-<!-- Before the first public release, replace USERNAME below with the real
-     GitHub account or organization that hosts this repository. -->
-
-[unreleased]: https://github.com/USERNAME/EvoNIDS/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/USERNAME/EvoNIDS/releases/tag/v0.1.0
+[unreleased]: https://github.com/RootTuring0524/EvoNIDS/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/RootTuring0524/EvoNIDS/releases/tag/v0.1.0

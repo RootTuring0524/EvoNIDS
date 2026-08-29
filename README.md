@@ -9,8 +9,7 @@
 ![Node](https://img.shields.io/badge/node-%E2%89%A522-blue)
 ![Nuxt](https://img.shields.io/badge/Nuxt-4-00DC82)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.1x-009688)
-<!-- Replace USERNAME with your GitHub account after creating the repository: -->
-[![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FUSERNAME%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/USERNAME/EvoNIDS/actions)
+[![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FRootTuring0524%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/RootTuring0524/EvoNIDS/actions)
 
 > ⚠️ **Honesty statement** — EvoNIDS is a research/teaching system, not a production appliance. The known-attack channel currently runs a deliberately conservative **HistGradientBoosting CPU baseline** and the unknown-anomaly channel runs a **PyTorch AutoEncoder**. The target **Flow Transformer (masked feature modeling)** is planned for v0.2 and is *not* trained yet. Every simulated or degraded path in the UI is explicitly labeled — we never present mock numbers as measured ones.
 
@@ -213,7 +212,7 @@ If you use EvoNIDS in research or teaching, please cite [CITATION.cff](CITATION.
   title   = {EvoNIDS: Evidence-Driven Adaptive Network Intrusion Detection System},
   year    = {2026},
   version = {0.1.0},
-  url     = {https://github.com/USERNAME/EvoNIDS}
+  url     = {https://github.com/RootTuring0524/EvoNIDS}
 }
 ```
 
