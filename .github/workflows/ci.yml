@@ -33,9 +33,11 @@ jobs:
           filters: |
             backend:
               - "backend/**"
+              - "docker-compose.yml"
               - ".github/workflows/ci.yml"
             frontend:
               - "project/**"
+              - "docker-compose.yml"
               - ".github/workflows/ci.yml"
 
   backend:
@@ -62,6 +64,14 @@ jobs:
       - name: Lint with ruff
         # Ruff is configured in backend/pyproject.toml ([tool.ruff], py311, line-length 120).
         run: ruff check .
+      - name: Dependency vulnerability audit
+        # Known-vulnerability scan for the installed dependency set. continue-on-error
+        # keeps advisory noise from blocking merges while the baseline is triaged;
+        # remove it once the backlog is clear.
+        run: |
+          pip install pip-audit
+          pip-audit --skip-editable
+        continue-on-error: true
       - name: Run tests
         # pytest config lives in backend/pyproject.toml: testpaths = ["tests"], pythonpath = ["."].
         run: pytest -q
@@ -98,6 +108,10 @@ jobs:
       - name: Lint
         # package.json script "lint" -> "eslint ."
         run: pnpm lint
+      - name: Typecheck
+        # package.json script "typecheck" -> "nuxt typecheck" (vue-tsc across app/,
+        # server/ and shared/); catches contract drift that vitest cannot see.
+        run: pnpm typecheck
       - name: Unit tests
         # package.json script "test" -> "vitest run" — already a one-shot runner,
         # so no extra "--run" flag is needed. ("test:watch" is the watch variant

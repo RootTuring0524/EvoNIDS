@@ -1,0 +1,108 @@
+﻿==============================================================================
+EvoNIDS FULL baseline training (HistGradientBoosting, CPU)
+csv       : D:\test-harness\evonids-full-training\data\CICIDS2017\cicids2017_pcap_flow_full_v1.csv.gz
+max_rows  : ALL (every row)
+max_iter  : 200  lr=0.08  leaf=31  l2=0.2
+seed      : 20260728
+==============================================================================
+[sha256] hashing dataset ...
+[sha256] f9ff72b9768e38637c401d287327173f1408c9fbdcacb8a8b82f472abcac5fec
+[scan] chunk=01 rows=100,000 rate=110,185 rows/s elapsed=1s
+[scan] chunk=02 rows=200,000 rate=114,850 rows/s elapsed=2s
+[scan] chunk=03 rows=300,000 rate=88,396 rows/s elapsed=3s
+[scan] chunk=04 rows=400,000 rate=71,901 rows/s elapsed=6s
+[scan] chunk=05 rows=500,000 rate=64,841 rows/s elapsed=8s
+[scan] chunk=06 rows=600,000 rate=60,945 rows/s elapsed=10s
+[scan] chunk=07 rows=700,000 rate=57,907 rows/s elapsed=12s
+[scan] chunk=08 rows=800,000 rate=55,622 rows/s elapsed=14s
+[scan] chunk=09 rows=900,000 rate=53,732 rows/s elapsed=17s
+[scan] chunk=10 rows=1,000,000 rate=52,673 rows/s elapsed=19s
+[scan] chunk=11 rows=1,100,000 rate=51,621 rows/s elapsed=21s
+[scan] chunk=12 rows=1,200,000 rate=51,041 rows/s elapsed=24s
+[scan] chunk=13 rows=1,300,000 rate=50,476 rows/s elapsed=26s
+[scan] chunk=14 rows=1,400,000 rate=50,111 rows/s elapsed=28s
+[scan] chunk=15 rows=1,500,000 rate=49,940 rows/s elapsed=30s
+[scan] chunk=16 rows=1,600,000 rate=49,704 rows/s elapsed=32s
+[scan] chunk=17 rows=1,700,000 rate=49,471 rows/s elapsed=34s
+[scan] chunk=18 rows=1,800,000 rate=49,401 rows/s elapsed=36s
+[scan] chunk=19 rows=1,900,000 rate=49,840 rows/s elapsed=38s
+[scan] chunk=20 rows=2,000,000 rate=49,953 rows/s elapsed=40s
+[scan] chunk=21 rows=2,100,000 rate=49,762 rows/s elapsed=42s
+[scan] chunk=22 rows=2,120,625 rate=49,731 rows/s elapsed=43s
+[scan] done: 2,120,625 rows in 42.6s
+[features] numeric=42 dropped=4
+[features] dropped: capture_day, source_ip, destination_ip, start_time
+[labels] distribution:
+  BENIGN                   1,620,430  ( 76.4%)
+  PortScan                   160,203  (  7.6%)
+  DoS Hulk                   150,625  (  7.1%)
+  DDoS                        92,152  (  4.3%)
+  Infiltration                67,347  (  3.2%)
+  DoS GoldenEye                8,786  (  0.4%)
+  DoS slowloris                6,819  (  0.3%)
+  DoS Slowhttptest             5,812  (  0.3%)
+  FTP-Patator                  3,958  (  0.2%)
+  SSH-Patator                  2,464  (  0.1%)
+  Web Attack Brute Force       1,349  (  0.1%)
+  Web Attack XSS                 661  (  0.0%)
+  Heartbleed                      10  (  0.0%)
+  Web Attack SQL Injection         9  (  0.0%)
+[labels] kept=2,120,625 rows across 14 classes
+[split] train=1,484,437 validation=318,094 test=318,094 (70/15/15 stratified)
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=3s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=6s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=9s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=12s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=15s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=18s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=21s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=24s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=27s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=30s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=33s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=36s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=39s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=42s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=45s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=48s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=51s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=54s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=57s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=60s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=63s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=66s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=69s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=72s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=75s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=78s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=81s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=84s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=87s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=90s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=93s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=96s
+[fit] HistGradientBoosting on 1,484,437 rows (early stopping on) elapsed=99s
+[fit] completed in 102.0s (iterations used: 58)
+------------------------------------------------------------------------------
+[val]   macro_f1=0.9631
+[test]  accuracy=0.9912  balanced_accuracy=0.9014
+[test]  macro P/R/F1 = 0.8772 / 0.9014 / 0.8883   weighted_f1=0.9913
+[test]  OvR ROC-AUC=0.9997   OvR PR-AUC=0.9125
+[test]  per class:
+  BENIGN                   support= 243,065  precision= 0.998  recall= 0.990  f1= 0.994
+  DDoS                     support=  13,823  precision= 0.996  recall= 1.000  f1= 0.998
+  DoS GoldenEye            support=   1,318  precision= 0.977  recall= 0.998  f1= 0.988
+  DoS Hulk                 support=  22,594  precision= 0.962  recall= 1.000  f1= 0.980
+  DoS Slowhttptest         support=     872  precision= 0.970  recall= 0.998  f1= 0.984
+  DoS slowloris            support=   1,023  precision= 0.991  recall= 0.999  f1= 0.995
+  FTP-Patator              support=     594  precision= 0.992  recall= 1.000  f1= 0.996
+  Heartbleed               support=       1  precision= 0.000  recall= 0.000  f1= 0.000
+  Infiltration             support=  10,102  precision= 0.883  recall= 0.959  f1= 0.920
+  PortScan                 support=  24,030  precision= 1.000  recall= 1.000  f1= 1.000
+  SSH-Patator              support=     370  precision= 0.992  recall= 0.995  f1= 0.993
+  Web Attack Brute Force   support=     202  precision= 0.851  recall= 0.822  f1= 0.836
+  Web Attack SQL Injection support=       1  precision= 1.000  recall= 1.000  f1= 1.000
+  Web Attack XSS           support=      99  precision= 0.669  recall= 0.859  f1= 0.752
+[artifact] D:\test-harness\evonids-full-training\artifacts\baseline\TRN-FULL-BASE-37E2F1560491\model.joblib
+[sha256]   e07d2efe955eed4b9707a6179fb9725f53dafd1462f11ee83195436c4f0459a6
+[complete] TRN-FULL-BASE-37E2F1560491 succeeded

@@ -27,7 +27,8 @@ def ingest_eve_text(db: Session, *, sensor_id: str, content: str) -> dict[str, A
         sensor.state = "online"
 
     failures: list[EveParseFailure] = []
-    records = iter_eve_stream(io.StringIO(content), failures)
+    failure_counts: dict[str, int] = {}
+    records = iter_eve_stream(io.StringIO(content), failures, failure_counts)
     accepted = created_flows = created_alerts = duplicates = 0
 
     for record in records:
@@ -41,15 +42,16 @@ def ingest_eve_text(db: Session, *, sensor_id: str, content: str) -> dict[str, A
             created_alerts += int(outcome == "created")
             duplicates += int(outcome == "duplicate")
 
+    rejected = failure_counts.get("rejected", len(failures))
     previous_metadata = dict(sensor.metadata_json or {})
     sensor.metadata_json = {
         **previous_metadata,
         "source": previous_metadata.get("source", "eve-import"),
         "lastAcceptedEvents": accepted,
-        "lastRejectedEvents": len(failures),
+        "lastRejectedEvents": rejected,
         "lastDuplicateEvents": duplicates,
         "lifetimeAcceptedEvents": int(previous_metadata.get("lifetimeAcceptedEvents", 0)) + accepted,
-        "lifetimeRejectedEvents": int(previous_metadata.get("lifetimeRejectedEvents", 0)) + len(failures),
+        "lifetimeRejectedEvents": int(previous_metadata.get("lifetimeRejectedEvents", 0)) + rejected,
         "lastIngestedAt": received_at.isoformat(),
     }
     db.commit()
@@ -59,7 +61,7 @@ def ingest_eve_text(db: Session, *, sensor_id: str, content: str) -> dict[str, A
         "created_flows": created_flows,
         "created_alerts": created_alerts,
         "duplicate_events": duplicates,
-        "rejected_events": len(failures),
+        "rejected_events": rejected,
         "failures": [
             {"line_number": failure.line_number, "reason": failure.reason}
             for failure in failures[:25]

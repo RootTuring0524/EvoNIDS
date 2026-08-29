@@ -40,7 +40,7 @@ flowchart TD
 | Dual-channel scoring backfill | `backend/scripts/backfill_dual_channel_inference.py` | Scores replay flows with both channels and persists `Inference` records with per-channel results and fusion evidence. This is an offline backfill — see Planned. |
 | Alert operations | `backend/app/services/alert_operations.py` | Fused alert detail, assignment/disposition, evidence assembly, Agent run contract. |
 | Knowledge retrieval | `backend/app/services/knowledge_retrieval.py` | Persisted evidence with keyword retrieval. The implementation honestly reports `keyword_fallback` — vector candidates and scores stay zero until an embedding pipeline exists. Trust filtering and prompt-injection marker detection force suspicious evidence into a blocked review path. |
-| Agent boundary | `project/server/api/agent/analyze.post.ts` + `backend/app/services/alert_operations.py` | DeepSeek is called server-side only; **only trusted, non-blocked evidence** crosses the boundary into the Agent contract. Agent runs are not persisted yet. |
+| Agent boundary | `project/server/api/agent/analyze.post.ts` + `backend/app/services/alert_operations.py` | DeepSeek is called server-side only; **only trusted, non-blocked evidence** crosses the boundary into the Agent contract. Validated agent runs (including their evidence-ID whitelist check) are persisted to `agent_runs` with an audit event. |
 | Rule lifecycle | `backend/app/services/rule_lifecycle.py` | Pure-Python structured rule evaluator plus lifecycle transition guard: proposal → replay validation → confirmation → deployment, with versioned rules. |
 | Replay validation | labeled-flow rule replay services | Candidate rules are replayed against labeled flows and measured precision, recall, F1 and false-positive rate are persisted before confirmation. |
 | Dataset registry | `backend/app/services/dataset_catalog.py` | Register datasets by relative path under `EVONIDS_DATASET_ROOT`; background profiling computes SHA-256, row count, feature count, missing values and label distribution. Dataset digest becomes immutable lineage once referenced by a training run. |
@@ -69,4 +69,4 @@ flowchart TD
 - **Persistent job queue for training and long tasks** — training runs execute in the
   FastAPI process today; jobs interrupted by a process exit are marked failed with an
   audit event until a durable queue exists.
-- **Persisted Agent runs** — DeepSeek analysis is invoked on demand; runs are not stored yet.
+- **Vector hybrid retrieval** — retrieval honestly reports `keyword_fallback` today; embeddings, pgvector and reranking are the next knowledge-layer step.

@@ -190,7 +190,8 @@ benign sample) is the lightweight variant used by the earlier bootstrap run and 
 
 ## Where the numbers come from
 
-- `tmp/full-training-logs/baseline.log` — HGB full-dataset run log (per-class table, hyperparameters, artifact digest).
-- `tmp/full-training-logs/autoencoder.log` — AutoEncoder run log (threshold, AUROC/AUPRC, per-class recall, artifact digest).
+- `docs/evidence/training-logs/baseline.log` — HGB full-dataset run log (per-class table, hyperparameters, artifact digest).
+- `docs/evidence/training-logs/autoencoder.log` — AutoEncoder run log (threshold, AUROC/AUPRC, per-class recall, artifact digest).
 - `backend/model-artifacts/cicids2017-latest-summary.json` — earlier research_v1 bootstrap run record.
+- `backend/model-artifacts/full-baseline/full-latest-summary.json` — the full-dataset run record behind the headline table above.
 - `backend/datasets/CICIDS2017/*.metadata.json` — dataset extraction provenance and label distributions.

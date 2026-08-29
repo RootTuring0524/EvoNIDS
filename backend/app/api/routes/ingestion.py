@@ -14,10 +14,19 @@ MAX_EVE_BYTES = 10 * 1024 * 1024
 @router.post("/eve", response_model=EveIngestionResponse, response_model_by_alias=True)
 async def ingest_eve(
     request: Request,
-    sensor_id: str = Query("lab-core-01", alias="sensorId", min_length=1, max_length=80),
+    sensor_id: str = Query(
+        "lab-core-01",
+        alias="sensorId",
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$",
+    ),
     _: None = Depends(require_sensor_token),
     db: Session = Depends(get_db),
 ) -> EveIngestionResponse:
+    declared_length = request.headers.get("content-length")
+    if declared_length and declared_length.isdigit() and int(declared_length) > MAX_EVE_BYTES:
+        raise HTTPException(status_code=413, detail="EVE payload exceeds the 10 MiB development limit")
     body = await request.body()
     if len(body) > MAX_EVE_BYTES:
         raise HTTPException(status_code=413, detail="EVE payload exceeds the 10 MiB development limit")

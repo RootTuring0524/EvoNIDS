@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { getAlertDetail } from '../../utils/domain-data'
+import { getAlertDetail, setAlertOverride } from '../../utils/domain-data'
 import { fetchBackend, usesMockApi } from '../../utils/backend'
 
 const bodySchema = z.object({
@@ -29,5 +29,6 @@ export default defineEventHandler(async (event) => {
   if (parsed.data.owner !== undefined) detail.alert.owner = parsed.data.owner
   if (parsed.data.status) detail.alert.status = parsed.data.status
   if (parsed.data.owner && detail.alert.status === 'new') detail.alert.status = 'investigating'
+  setAlertOverride(id, { owner: detail.alert.owner, status: detail.alert.status })
   return detail
 })

@@ -243,7 +243,7 @@ async function runPendingAgents() {
       @update:page-size="setPageSize"
     >
       <template #cell-severity="{ row }"><SeverityBadge :level="row.severity" /></template>
-      <template #cell-timestamp="{ row }"><span class="mono subtle">{{ row.timestamp.slice(11) }}</span></template>
+      <template #cell-timestamp="{ row }"><span class="mono subtle">{{ formatTimestamp(row.timestamp) }}</span></template>
       <template #cell-title="{ row }"><span class="alert-title"><b>{{ row.title }}</b><small><code>{{ row.id }}</code> · {{ row.detector }}</small></span></template>
       <template #cell-sourceIp="{ row }"><span class="mono">{{ row.sourceIp }}</span></template>
       <template #cell-destinationIp="{ row }"><span class="mono">{{ row.destinationIp }}<small>:{{ row.destinationPort }}</small></span></template>

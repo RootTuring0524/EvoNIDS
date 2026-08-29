@@ -98,7 +98,7 @@ This is deliberately a `HistGradientBoostingClassifier` baseline — the benchma
 
 ## Reproduce the CICIDS2017 PCAP baseline
 
-The bundled database already contains the completed July 2026 baseline and its replay records. To reproduce the complete pipeline later:
+The released repository does not include the SQLite database or the 235 MB dataset. `seed_demo.py` loads a small demo; to reproduce the full July 2026 baseline, extract the dataset from the official PCAPs (see DATA_CARD.md) and rerun the pipeline:
 
 ```powershell
 Set-Location "<repo-root>\backend"
