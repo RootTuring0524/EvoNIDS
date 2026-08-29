@@ -89,7 +89,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
       - name: Install pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           # Auto-reads the pnpm version from the packageManager field of
           # project/package.json (currently pnpm@11.13.1).
