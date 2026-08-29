@@ -129,7 +129,7 @@ def main() -> None:
     print(f"seed      : {args.random_seed}", flush=True)
     print("=" * 78, flush=True)
 
-    print(f"[sha256] hashing dataset ...", flush=True)
+    print("[sha256] hashing dataset ...", flush=True)
     csv_sha256 = _sha256(path)
     print(f"[sha256] {csv_sha256}", flush=True)
 

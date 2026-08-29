@@ -19,9 +19,6 @@ BACKEND_DIR = HERE.parent
 sys.path.insert(0, str(BACKEND_DIR))
 
 from app.services.autoencoder import (  # noqa: E402
-    ALGORITHM,
-    FEATURE_VERSION,
-    TASK,
     sha256_file,
     train_autoencoder,
     write_artifact,
