@@ -35,7 +35,7 @@ The LLM agent (DeepSeek, server-side only) can **propose** structured detection 
 | Vector DB waving | Retrieval honestly reports `keyword_fallback` until a vector pipeline exists |
 | One black-box score | **Dual-channel** known-attack classifier + unknown-anomaly autoencoder with transparent risk fusion |
 | Silent mock data | Mock mode is explicitly labeled "演示模式"; every real number is traceable to a dataset digest and model artifact SHA-256 |
-| Prompt injection hope | Untrusted knowledge text is **quarantined** by marker detection and never reaches the agent context |
+| Prompt injection hope | Untrusted knowledge text that trips marker detection is **quarantined** (a heuristic layer), backed by schema validation, evidence whitelists and the human gate |
 
 ## Screenshots
 
@@ -139,7 +139,7 @@ With a key configured, "运行 Agent 研判" on an alert produces a validated an
 
 1. Dual-channel models score flows; fusion produces an alert with per-channel evidence.
 2. The analyst opens the alert: known-attack probabilities, reconstruction error, deviating features, raw sensor facts — each visually separated as fact / model inference / agent suggestion.
-3. RAG retrieves knowledge evidence with trust levels; prompt-injection-like records stay visible for review but never enter the agent context.
+3. RAG retrieves knowledge evidence with trust levels; records that trip injection markers are quarantined, stay visible for review and cannot enter the agent context. Detection is heuristic substring matching — schema validation, evidence-ID whitelisting and the human approval gate provide the remaining layers.
 4. The DeepSeek agent returns hypothesis, pattern decision (`new_pattern` / `rule_variant` / `known_match` / `benign`) and — for new patterns — a **structured rule proposal** whose conditions may only use fields from the versioned feature schema, with values grounded in the observed profile.
 5. "存为候选规则" persists the proposal as a `candidate` (source: `agent`). The agent cannot do this itself.
 6. Replay validation evaluates the rule against labeled flows and persists measured precision, recall, F1 and false-positive rate.
@@ -193,7 +193,8 @@ MODEL_CARD.md / DATA_CARD.md   honest model & dataset documentation
 
 - DeepSeek credentials and admin/sensor tokens are **server-side only**; the browser never sees them. `.env` is git-ignored — commit only the templates.
 - EVE ingestion is capped (10 MiB per file), rejects malformed lines individually, and deduplicates by event identity. Outside development, sensor and admin tokens are mandatory.
-- Untrusted knowledge text is quarantined by prompt-injection marker detection before it can reach the agent; agent evidence IDs are validated against the trusted subset on the server.
+- Untrusted knowledge text is quarantined by prompt-injection marker detection (a heuristic, not a complete defense) before it can reach the agent; agent evidence IDs are validated against the trusted subset on the server.
+- The v0.1 console intentionally ships **without browser-side authentication** — the Nuxt BFF attaches the admin token server-side. Keep the console bound to localhost (the default) and do not expose it to untrusted networks.
 - The demo dataset is the public CICIDS2017 research capture — no real organizational traffic. See [DATA_CARD.md](DATA_CARD.md).
 
 ## Roadmap

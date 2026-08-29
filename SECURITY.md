@@ -35,6 +35,8 @@ We handle reports on a best-effort basis and aim to acknowledge new reports with
 ## Known limitations (please read before reporting)
 
 - The admin token is a service-to-service control, not an end-user authentication system. There is no RBAC, SSO, session management or tenant isolation yet.
+- The Nuxt console ships **without browser-side authentication**: the BFF attaches the admin token server-side once a request reaches it. Keep the console bound to localhost (the compose default) and never expose it directly to untrusted networks.
+- Prompt-injection detection is heuristic substring matching over a fixed marker list; crafted variants (Unicode homoglyphs, token splitting, other languages) can evade it. Structured schema validation, evidence-ID whitelisting and the human approval gate are the remaining layers — do not treat the marker filter as a complete defense.
 - "Rule deployment" closes the database and audit loop only; no configuration is pushed to real Suricata probes.
 - Development defaults (SQLite, localhost CORS, auto-created tables, empty tokens in dev) are conveniences, not production hardening. Production use requires PostgreSQL, secret management, TLS/reverse proxy, backups and monitoring.
 

@@ -558,9 +558,29 @@ export const alertDetails: Record<string, AlertDetail> = {
   }),
 }
 
+type AlertOverride = { owner?: string | null; status?: AlertDetail['alert']['status'] }
+
+// Mock-mode alert dispositions survive HMR and stay consistent across endpoints,
+// mirroring the globalThis store pattern used by server/utils/rule-state.ts.
+const alertOverrides: Map<string, AlertOverride> = (() => {
+  const carrier = globalThis as unknown as Record<string, unknown>
+  if (!carrier.__evonidsAlertOverrides) carrier.__evonidsAlertOverrides = new Map()
+  return carrier.__evonidsAlertOverrides as Map<string, AlertOverride>
+})()
+
+export function setAlertOverride(id: string, override: AlertOverride) {
+  const next = { ...alertOverrides.get(id), ...override }
+  alertOverrides.set(id, next)
+}
+
 export function getAlertDetail(id: string) {
-  const detail = alertDetails[id]
-  if (!detail) throw new Error(`Unknown alert ${id}`)
+  const base = alertDetails[id]
+  if (!base) throw new Error(`Unknown alert ${id}`)
+  const override = alertOverrides.get(id)
+  if (!override) return base
+  const detail = structuredClone(base)
+  if (override.owner !== undefined) detail.alert.owner = override.owner
+  if (override.status) detail.alert.status = override.status
   return detail
 }
 

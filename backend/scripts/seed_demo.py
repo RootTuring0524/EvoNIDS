@@ -249,7 +249,7 @@ def _seed_model_registry(db) -> int:
                 name=name,
                 role=role,
                 version=version,
-                state="training",
+                state="planned",
                 artifact_uri=None,
                 feature_version="flow-v1",
                 metrics={

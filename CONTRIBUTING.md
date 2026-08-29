@@ -31,7 +31,7 @@ The `dev` extra installs pytest, httpx and ruff; the `ml` extra installs numpy, 
 ```powershell
 Set-Location "<your clone>\project"
 corepack pnpm install
-pnpm hooks:install            # install husky git hooks (commitlint + lint-staged)
+pnpm hooks:install            # optional: prepare husky git hooks (the repo ships without active hooks)
 pnpm dev                      # console at http://localhost:3000/overview
 ```
 
@@ -93,7 +93,7 @@ project/
 
 ## Commit conventions
 
-The repository uses [Conventional Commits](https://www.conventionalcommits.org/), enforced by commitlint with husky hooks (see `project/commitlint.config.mjs`). lint-staged runs ESLint + Prettier on staged `ts`/`vue` files and Prettier on `css`/`md`/`json`.
+The repository uses [Conventional Commits](https://www.conventionalcommits.org/). The `project/.husky/` directory intentionally ships without active hook scripts, so the convention is currently a guideline rather than an enforced gate; `pnpm commitlint` and lint-staged are wired up and can be enabled locally via `pnpm hooks:install`. lint-staged runs ESLint + Prettier on staged `ts`/`vue` files and Prettier on `css`/`md`/`json`.
 
 ```
 feat(ingestion): bound EVE file import size

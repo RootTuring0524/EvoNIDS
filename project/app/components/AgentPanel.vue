@@ -2,7 +2,7 @@
 import { ClipboardList, ChevronRight, ShieldCheck, Sparkles } from '~/utils/icons'
 import type { AgentAnalysis } from '~~/shared/types/security'
 import type { AgentRuleProposal } from '~~/shared/schemas/security'
-defineProps<{ analysis: AgentAnalysis, proposedRule?: AgentRuleProposal | null, saving?: boolean }>()
+defineProps<{ analysis: AgentAnalysis, proposedRule?: AgentRuleProposal | null, saving?: boolean, canPersist?: boolean }>()
 const emit = defineEmits<{ (e: 'saveRule'): void }>()
 const decisionLabels = { new_pattern: '新攻击模式', rule_variant: '已有规则变体', known_match: '已知规则命中', benign: '正常 / 已解释行为' }
 const runStates = {
@@ -48,8 +48,9 @@ const runStates = {
       </table>
       <p class="proposal-rationale">{{ proposedRule.rationale }}</p>
       <div class="proposal-actions">
-        <button :disabled="saving" @click="emit('saveRule')"><ClipboardList :size="13" />{{ saving ? '保存中…' : '存为候选规则' }}</button>
-        <span>创建后仍需回放验证与人工确认；Agent 无法直接部署规则</span>
+        <button :disabled="saving || canPersist === false" @click="emit('saveRule')"><ClipboardList :size="13" />{{ saving ? '保存中…' : '存为候选规则' }}</button>
+        <span v-if="canPersist === false">演示模式仅预览提案；连接真实后端后可保存为候选规则</span>
+        <span v-else>创建后仍需回放验证与人工确认；Agent 无法直接部署规则</span>
       </div>
     </section>
     <div class="agent-steps">

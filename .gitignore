@@ -30,3 +30,8 @@ project/node_modules/
 project/test-results/
 project/playwright-report/
 EvoNIDS-github/
+
+# Training-log evidence referenced by MODEL_CARD.md is tracked on purpose.
+!docs/evidence/training-logs/*.log
+# backend/model-artifacts/cicids2017-latest-summary.json and the dataset
+# *.metadata.json records are force-added evidence for MODEL_CARD / DATA_CARD.

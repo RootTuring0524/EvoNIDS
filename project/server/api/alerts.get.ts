@@ -62,10 +62,21 @@ export default defineEventHandler(async (event) => {
   const currentPage = Math.min(page, lastPage)
   const offset = (currentPage - 1) * pageSize
 
+  const agentDecisions: Record<string, number> = {}
+  let agentCompleted = 0
+  for (const item of filtered) {
+    if (item.agentState !== 'completed') continue
+    agentCompleted += 1
+    if (item.agentDecision) agentDecisions[item.agentDecision] = (agentDecisions[item.agentDecision] ?? 0) + 1
+  }
+
   return {
     items: sorted.slice(offset, offset + pageSize),
     total,
     page: currentPage,
     pageSize,
+    agentCompleted,
+    agentPending: total - agentCompleted,
+    agentDecisions,
   }
 })

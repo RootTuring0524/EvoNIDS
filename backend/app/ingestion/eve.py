@@ -62,7 +62,17 @@ def parse_eve_line(line: str, line_number: int = 1) -> EveRecord:
     )
 
 
-def iter_eve_stream(stream: TextIO, failures: list[EveParseFailure] | None = None) -> Iterator[EveRecord]:
+# Failures are kept for the API response and logs; the cap bounds memory when a
+# large payload is dominated by malformed lines (the response only surfaces the
+# first few entries, so anything past the cap would never be read anyway).
+MAX_KEPT_PARSE_FAILURES = 200
+
+
+def iter_eve_stream(
+    stream: TextIO,
+    failures: list[EveParseFailure] | None = None,
+    failure_counts: dict[str, int] | None = None,
+) -> Iterator[EveRecord]:
     for line_number, raw in enumerate(stream, start=1):
         line = raw.strip()
         if not line:
@@ -72,7 +82,12 @@ def iter_eve_stream(stream: TextIO, failures: list[EveParseFailure] | None = Non
         except ValueError as exc:
             if failures is None:
                 raise
-            failures.append(EveParseFailure(line_number, str(exc), line[:500]))
+            # Every malformed line is counted; only the first MAX_KEPT_PARSE_FAILURES
+            # entries are retained because the API response surfaces a bounded sample.
+            if failure_counts is not None:
+                failure_counts["rejected"] = failure_counts.get("rejected", 0) + 1
+            if len(failures) < MAX_KEPT_PARSE_FAILURES:
+                failures.append(EveParseFailure(line_number, str(exc), line[:500]))
 
 
 def iter_eve_file(path: str | Path, failures: list[EveParseFailure] | None = None) -> Iterator[EveRecord]:

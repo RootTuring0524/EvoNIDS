@@ -6,6 +6,7 @@ import type { AgentAnalysis } from '~~/shared/types/security'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
+const isMock = useRuntimeConfig().public.useMockApi
 const activeTab = ref<'detection' | 'profile' | 'agent' | 'evidence'>('detection')
 const successMessage = ref('')
 const alertAction = ref<'assign' | 'contain' | null>(null)
@@ -103,6 +104,10 @@ async function runAgent() {
 
 async function saveProposedRule() {
   if (!proposedRule.value || ruleSaving.value) return
+  if (isMock) {
+    actionError.value = '演示模式仅预览 Agent 提案；启动真实后端后可将候选规则写入数据库。'
+    return
+  }
   ruleSaving.value = true
   actionError.value = ''
   try {
@@ -184,7 +189,7 @@ watch(id, () => {
         <section class="agent-work surface-panel">
           <LoadingState v-if="agentStatus === 'pending' && !agentAnalysis" :rows="6" label="DeepSeek V4 Pro 正在读取画像并检索证据" />
           <div v-if="agentStatus === 'pending'" class="agent-run-notice" role="status"><span /><b>Agent 工作流运行中</b><em>节点会按工具执行结果更新，不展示隐藏思维链</em></div>
-          <AgentPanel v-if="agentAnalysis" :analysis="agentAnalysis" :proposed-rule="proposedRule" :saving="ruleSaving" @save-rule="saveProposedRule" />
+          <AgentPanel v-if="agentAnalysis" :analysis="agentAnalysis" :proposed-rule="proposedRule" :saving="ruleSaving" :can-persist="!isMock" @save-rule="saveProposedRule" />
           <ErrorState v-if="agentStatus === 'error'" title="Agent 研判失败" :description="agentError" @retry="runAgent" />
         </section>
         <aside class="agent-side surface-panel"><h2>关联对象</h2>

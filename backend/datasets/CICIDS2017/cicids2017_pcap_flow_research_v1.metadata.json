@@ -1,0 +1,264 @@
+{
+  "extractorVersion": "evonids-pcapng-flow-v1",
+  "createdAt": "2026-07-28T06:58:24.289257+00:00",
+  "startedAt": "2026-07-28T06:48:22.396745+00:00",
+  "officialDatasetPage": "https://www.unb.ca/cic/datasets/ids-2017.html",
+  "sourceFormat": "CICIDS2017 original PCAPNG",
+  "labelingBasis": "Official UNB attack schedule plus documented attacker/victim endpoints and service ports",
+  "timezoneNormalization": "Official ADT schedule converted to UTC (+3 hours) before interval matching",
+  "flowPolicy": {
+    "bidirectionalFiveTuple": true,
+    "idleTimeoutSeconds": 60.0,
+    "activeTimeoutSeconds": 120.0,
+    "ipv4Only": true,
+    "linkType": "Ethernet"
+  },
+  "sampling": {
+    "attackFlows": "all matched flows",
+    "benignMethod": "deterministic BLAKE2b threshold sample",
+    "benignSampleRate": 0.05
+  },
+  "output": "D:\\IDS System\\backend\\datasets\\CICIDS2017\\cicids2017_pcap_flow_research_v1.csv.gz",
+  "outputSizeBytes": 43184277,
+  "outputSha256": "bf0ef5187f6db58f2248a4b9b3442483e91093936946a2ace60119d8e6fa49a3",
+  "featureCount": 46,
+  "totalPacketBlocksScanned": 56370702,
+  "totalPacketsParsedInSelectedWindows": 34127003,
+  "totalFlowsExtracted": 1434596,
+  "totalFlowsSelected": 546628,
+  "selectedLabelDistribution": {
+    "BENIGN": 46433,
+    "DDoS": 92152,
+    "DoS GoldenEye": 8786,
+    "DoS Hulk": 150625,
+    "DoS Slowhttptest": 5812,
+    "DoS slowloris": 6819,
+    "FTP-Patator": 3958,
+    "Heartbleed": 10,
+    "Infiltration": 67347,
+    "PortScan": 160203,
+    "SSH-Patator": 2464,
+    "Web Attack Brute Force": 1349,
+    "Web Attack SQL Injection": 9,
+    "Web Attack XSS": 661
+  },
+  "days": [
+    {
+      "day": "Monday",
+      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Monday-WorkingHours.pcap",
+      "sourceSizeBytes": 10822507416,
+      "sourceSha256": "f6eac599358f216b074338813a1cf7be3cc4e91d116e13efc0dc71f2cca11972",
+      "packetBlocksScanned": 11709971,
+      "packetsParsedInSelectedWindows": 7496914,
+      "flowsExtracted": 143504,
+      "flowsSelected": 7134,
+      "selectedLabelDistribution": {
+        "BENIGN": 7134
+      },
+      "fullLabelDistributionBeforeBenignSampling": {
+        "BENIGN": 143504
+      },
+      "analysisWindowsUtc": [
+        [
+          43200,
+          46800
+        ],
+        [
+          54000,
+          57600
+        ],
+        [
+          68400,
+          72000
+        ]
+      ],
+      "firstPacketUtc": "2017-07-03T12:00:00.847886+00:00",
+      "lastPacketUtc": "2017-07-03T20:00:00.990663+00:00",
+      "elapsedSeconds": 118.789
+    },
+    {
+      "day": "Tuesday",
+      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Tuesday-WorkingHours.pcap",
+      "sourceSizeBytes": 11048283608,
+      "sourceSha256": "080c2250154c5a174c03660ed0f75a3858d41a27511ba716e780d7bcb1ec4c57",
+      "packetBlocksScanned": 11551954,
+      "packetsParsedInSelectedWindows": 9260574,
+      "flowsExtracted": 223500,
+      "flowsSelected": 17212,
+      "selectedLabelDistribution": {
+        "BENIGN": 10790,
+        "FTP-Patator": 3958,
+        "SSH-Patator": 2464
+      },
+      "fullLabelDistributionBeforeBenignSampling": {
+        "BENIGN": 217078,
+        "FTP-Patator": 3958,
+        "SSH-Patator": 2464
+      },
+      "analysisWindowsUtc": [
+        [
+          44100,
+          48300
+        ],
+        [
+          50400,
+          54000
+        ],
+        [
+          60900,
+          65100
+        ],
+        [
+          68400,
+          72000
+        ]
+      ],
+      "firstPacketUtc": "2017-07-04T12:15:00.312060+00:00",
+      "lastPacketUtc": "2017-07-04T20:00:00.940983+00:00",
+      "elapsedSeconds": 125.554
+    },
+    {
+      "day": "Wednesday",
+      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Wednesday-WorkingHours.pcap",
+      "sourceSizeBytes": 13420789612,
+      "sourceSha256": "cd2674db7559a53f24bc03be3239b315700174ccaef72d10f5edc4c1a08f6186",
+      "packetBlocksScanned": 13788878,
+      "packetsParsedInSelectedWindows": 5952191,
+      "flowsExtracted": 352296,
+      "flowsSelected": 180953,
+      "selectedLabelDistribution": {
+        "BENIGN": 8901,
+        "DoS GoldenEye": 8786,
+        "DoS Hulk": 150625,
+        "DoS Slowhttptest": 5812,
+        "DoS slowloris": 6819,
+        "Heartbleed": 10
+      },
+      "fullLabelDistributionBeforeBenignSampling": {
+        "BENIGN": 180244,
+        "DoS GoldenEye": 8786,
+        "DoS Hulk": 150625,
+        "DoS Slowhttptest": 5812,
+        "DoS slowloris": 6819,
+        "Heartbleed": 10
+      },
+      "analysisWindowsUtc": [
+        [
+          45600,
+          52200
+        ],
+        [
+          54000,
+          57600
+        ],
+        [
+          65100,
+          67200
+        ],
+        [
+          68400,
+          72000
+        ]
+      ],
+      "firstPacketUtc": "2017-07-05T12:40:00.004782+00:00",
+      "lastPacketUtc": "2017-07-05T20:00:00.886135+00:00",
+      "elapsedSeconds": 138.081
+    },
+    {
+      "day": "Thursday",
+      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Thursday-WorkingHours.pcap",
+      "sourceSizeBytes": 8302500180,
+      "sourceSha256": "38f8b1bb276849bf1721f7c4de22bebfa7f59a74e52286d4c0a37edbb118fe01",
+      "packetBlocksScanned": 9322025,
+      "packetsParsedInSelectedWindows": 6513644,
+      "flowsExtracted": 276837,
+      "flowsSelected": 79661,
+      "selectedLabelDistribution": {
+        "BENIGN": 10295,
+        "Infiltration": 67347,
+        "Web Attack Brute Force": 1349,
+        "Web Attack SQL Injection": 9,
+        "Web Attack XSS": 661
+      },
+      "fullLabelDistributionBeforeBenignSampling": {
+        "BENIGN": 207471,
+        "Infiltration": 67347,
+        "Web Attack Brute Force": 1349,
+        "Web Attack SQL Injection": 9,
+        "Web Attack XSS": 661
+      },
+      "analysisWindowsUtc": [
+        [
+          44100,
+          49800
+        ],
+        [
+          50400,
+          54000
+        ],
+        [
+          61800,
+          67800
+        ],
+        [
+          68400,
+          72000
+        ]
+      ],
+      "firstPacketUtc": "2017-07-06T12:15:00.000107+00:00",
+      "lastPacketUtc": "2017-07-06T20:00:00.989495+00:00",
+      "elapsedSeconds": 107.887
+    },
+    {
+      "day": "Friday",
+      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Friday-WorkingHours.pcap",
+      "sourceSizeBytes": 8839309056,
+      "sourceSha256": "beff0dcce1eebc9b2454582f4dc8ed0ba0112b2c619a710bf03af93147254cd0",
+      "packetBlocksScanned": 9997874,
+      "packetsParsedInSelectedWindows": 4903680,
+      "flowsExtracted": 438459,
+      "flowsSelected": 261668,
+      "selectedLabelDistribution": {
+        "BENIGN": 9313,
+        "DDoS": 92152,
+        "PortScan": 160203
+      },
+      "fullLabelDistributionBeforeBenignSampling": {
+        "BENIGN": 186104,
+        "DDoS": 92152,
+        "PortScan": 160203
+      },
+      "analysisWindowsUtc": [
+        [
+          46500,
+          51000
+        ],
+        [
+          54000,
+          57600
+        ],
+        [
+          60600,
+          66900
+        ],
+        [
+          67800,
+          69600
+        ],
+        [
+          70200,
+          72000
+        ]
+      ],
+      "firstPacketUtc": "2017-07-07T12:55:00.043927+00:00",
+      "lastPacketUtc": "2017-07-07T20:00:00.886089+00:00",
+      "elapsedSeconds": 111.365
+    }
+  ],
+  "limitations": [
+    "This is an EvoNIDS research flow table, not a byte-for-byte reproduction of CICFlowMeter output.",
+    "Only Ethernet IPv4 packets are included; non-initial fragments have zero transport ports.",
+    "Labels are schedule-and-endpoint derived and should be cross-checked against official labeled CSVs before publication.",
+    "Benign traffic is deterministically sampled to keep local CPU experiments tractable."
+  ]
+}

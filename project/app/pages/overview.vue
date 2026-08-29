@@ -114,7 +114,7 @@ function onAlertKeydown(event:KeyboardEvent,row:Alert){if(event.key==='Enter'||e
                 <td class="mono"><span>{{ row.sourceIp }}</span><small>→ {{ row.destinationIp }}:{{ row.destinationPort }}</small></td>
                 <td><RiskScore :value="row.riskScore" :severity="row.severity" compact /></td>
                 <td><StatusIndicator :status="row.status" :label="({ new: '待研判', investigating: '调查中', contained: '已遏制', closed: '已关闭' } as Record<string,string>)[row.status]" /></td>
-                <td class="mono subtle">{{ row.timestamp.slice(11) }}</td>
+                <td class="mono subtle">{{ formatTimestamp(row.timestamp) }}</td>
               </tr>
             </tbody>
           </table>

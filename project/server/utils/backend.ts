@@ -42,8 +42,9 @@ export async function fetchBackend<T>(
       headers: {
         'x-request-id': requestId,
         accept: 'application/json',
-        ...(options.admin ? { 'x-evonids-admin-token': config.backend.adminToken } : {}),
         ...options.headers,
+        // Attached last so caller-supplied headers can never override the admin token.
+        ...(options.admin ? { 'x-evonids-admin-token': config.backend.adminToken } : {}),
       },
       retry: 0,
       timeout: 10_000,

@@ -1,0 +1,93 @@
+﻿==============================================================================
+EvoNIDS FULL AutoEncoder training (unknown-anomaly detection, PyTorch CPU)
+run_id        : TRN-AE-FULL-C02138437669
+csv           : D:\test-harness\evonids-full-training\data\CICIDS2017\cicids2017_pcap_flow_full_v1.csv.gz
+features      : 41
+target FPR    : 5.0%  ->  threshold quantile 0.95 (validation set)
+epochs/batch  : 40 / 1024  (early-stop patience=6)
+normal cap    : ALL   attack cap: ALL
+==============================================================================
+[sha256] hashing dataset ...
+[sha256] f9ff72b9768e38637c401d287327173f1408c9fbdcacb8a8b82f472abcac5fec
+[load] chunk=01 rows=100,000 normal_seen=100,000 attack_labels=0
+[load] chunk=02 rows=200,000 normal_seen=200,000 attack_labels=0
+[load] chunk=03 rows=300,000 normal_seen=300,000 attack_labels=0
+[load] chunk=04 rows=400,000 normal_seen=400,000 attack_labels=0
+[load] chunk=05 rows=500,000 normal_seen=496,042 attack_labels=1
+[load] chunk=06 rows=600,000 normal_seen=595,155 attack_labels=2
+[load] chunk=07 rows=700,000 normal_seen=693,578 attack_labels=2
+[load] chunk=08 rows=800,000 normal_seen=781,817 attack_labels=4
+[load] chunk=09 rows=900,000 normal_seen=796,437 attack_labels=5
+[load] chunk=10 rows=1,000,000 normal_seen=823,851 attack_labels=6
+[load] chunk=11 rows=1,100,000 normal_seen=921,536 attack_labels=6
+[load] chunk=12 rows=1,200,000 normal_seen=1,021,526 attack_labels=7
+[load] chunk=13 rows=1,300,000 normal_seen=1,119,507 attack_labels=10
+[load] chunk=14 rows=1,400,000 normal_seen=1,219,507 attack_labels=10
+[load] chunk=15 rows=1,500,000 normal_seen=1,269,440 attack_labels=11
+[load] chunk=16 rows=1,600,000 normal_seen=1,352,160 attack_labels=11
+[load] chunk=17 rows=1,700,000 normal_seen=1,452,160 attack_labels=11
+[load] chunk=18 rows=1,800,000 normal_seen=1,539,309 attack_labels=12
+[load] chunk=19 rows=1,900,000 normal_seen=1,542,225 attack_labels=12
+[load] chunk=20 rows=2,000,000 normal_seen=1,584,582 attack_labels=13
+[load] chunk=21 rows=2,100,000 normal_seen=1,599,805 attack_labels=13
+[load] chunk=22 rows=2,120,625 normal_seen=1,620,430 attack_labels=13
+[epoch 01/40] train_mse=0.109906 val_mse=0.026748 best=0.026748 stale=0 eta=877s
+[epoch 02/40] train_mse=0.021982 val_mse=0.019566 best=0.019566 stale=0 eta=849s
+[epoch 03/40] train_mse=0.017636 val_mse=0.015805 best=0.015805 stale=0 eta=822s
+[epoch 04/40] train_mse=0.014466 val_mse=0.013500 best=0.013500 stale=0 eta=799s
+[epoch 05/40] train_mse=0.012953 val_mse=0.012492 best=0.012492 stale=0 eta=777s
+[epoch 06/40] train_mse=0.012138 val_mse=0.011859 best=0.011859 stale=0 eta=753s
+[epoch 07/40] train_mse=0.011586 val_mse=0.011402 best=0.011402 stale=0 eta=729s
+[epoch 08/40] train_mse=0.011188 val_mse=0.011029 best=0.011029 stale=0 eta=704s
+[epoch 09/40] train_mse=0.010883 val_mse=0.010778 best=0.010778 stale=0 eta=679s
+[epoch 10/40] train_mse=0.010642 val_mse=0.010573 best=0.010573 stale=0 eta=658s
+[epoch 11/40] train_mse=0.010432 val_mse=0.010296 best=0.010296 stale=0 eta=637s
+[epoch 12/40] train_mse=0.010279 val_mse=0.010184 best=0.010184 stale=0 eta=616s
+[epoch 13/40] train_mse=0.010133 val_mse=0.010079 best=0.010079 stale=0 eta=594s
+[epoch 14/40] train_mse=0.010000 val_mse=0.009876 best=0.009876 stale=0 eta=573s
+[epoch 15/40] train_mse=0.009891 val_mse=0.009825 best=0.009825 stale=0 eta=552s
+[epoch 16/40] train_mse=0.009781 val_mse=0.009801 best=0.009801 stale=0 eta=530s
+[epoch 17/40] train_mse=0.009671 val_mse=0.009698 best=0.009698 stale=0 eta=508s
+[epoch 18/40] train_mse=0.009571 val_mse=0.009565 best=0.009565 stale=0 eta=486s
+[epoch 19/40] train_mse=0.009470 val_mse=0.009393 best=0.009393 stale=0 eta=464s
+[epoch 20/40] train_mse=0.009374 val_mse=0.009406 best=0.009393 stale=1 eta=442s
+[epoch 21/40] train_mse=0.009306 val_mse=0.009311 best=0.009311 stale=0 eta=419s
+[epoch 22/40] train_mse=0.009233 val_mse=0.009310 best=0.009311 stale=1 eta=397s
+[epoch 23/40] train_mse=0.009168 val_mse=0.009139 best=0.009139 stale=0 eta=375s
+[epoch 24/40] train_mse=0.009109 val_mse=0.009119 best=0.009119 stale=0 eta=353s
+[epoch 25/40] train_mse=0.009054 val_mse=0.009073 best=0.009073 stale=0 eta=331s
+[epoch 26/40] train_mse=0.008995 val_mse=0.009039 best=0.009039 stale=0 eta=309s
+[epoch 27/40] train_mse=0.008941 val_mse=0.008907 best=0.008907 stale=0 eta=287s
+[epoch 28/40] train_mse=0.008900 val_mse=0.008928 best=0.008907 stale=1 eta=265s
+[epoch 29/40] train_mse=0.008846 val_mse=0.008892 best=0.008892 stale=0 eta=243s
+[epoch 30/40] train_mse=0.008801 val_mse=0.008819 best=0.008819 stale=0 eta=221s
+[epoch 31/40] train_mse=0.008756 val_mse=0.008830 best=0.008819 stale=1 eta=199s
+[epoch 32/40] train_mse=0.008714 val_mse=0.008715 best=0.008715 stale=0 eta=177s
+[epoch 33/40] train_mse=0.008679 val_mse=0.008770 best=0.008715 stale=1 eta=155s
+[epoch 34/40] train_mse=0.008628 val_mse=0.008665 best=0.008665 stale=0 eta=133s
+[epoch 35/40] train_mse=0.008589 val_mse=0.008650 best=0.008650 stale=0 eta=111s
+[epoch 36/40] train_mse=0.008543 val_mse=0.008525 best=0.008525 stale=0 eta=89s
+[epoch 37/40] train_mse=0.008502 val_mse=0.008477 best=0.008477 stale=0 eta=66s
+[epoch 38/40] train_mse=0.008460 val_mse=0.008422 best=0.008422 stale=0 eta=44s
+[epoch 39/40] train_mse=0.008420 val_mse=0.008451 best=0.008422 stale=1 eta=22s
+[epoch 40/40] train_mse=0.008378 val_mse=0.008403 best=0.008403 stale=0 eta=0s
+------------------------------------------------------------------------------
+[result] threshold=0.033349  attack_recall=27.48%  precision=91.88%  f1=0.4230  normal_fpr=5.00%
+[result] AUROC=0.9042  AUPRC=0.9189  epochs_completed=40  train_seconds=957.3
+[result] per attack class:
+  DDoS                     support= 92,152  detected= 30,144  recall= 32.71%  median_err=0.0244
+  DoS GoldenEye            support=  8,786  detected=  2,908  recall= 33.10%  median_err=0.0219
+  DoS Hulk                 support=150,625  detected= 14,146  recall=  9.39%  median_err=0.0121
+  DoS Slowhttptest         support=  5,812  detected=  5,378  recall= 92.53%  median_err=0.0590
+  DoS slowloris            support=  6,819  detected=  4,094  recall= 60.04%  median_err=0.0699
+  FTP-Patator              support=  3,958  detected=     11  recall=  0.28%  median_err=0.0185
+  Heartbleed               support=     10  detected=     10  recall=100.00%  median_err=1.4938
+  Infiltration             support= 67,347  detected= 49,902  recall= 74.10%  median_err=0.0467
+  PortScan                 support=160,203  detected= 30,744  recall= 19.19%  median_err=0.0251
+  SSH-Patator              support=  2,464  detected=      2  recall=  0.08%  median_err=0.0229
+  Web Attack Brute Force   support=  1,349  detected=     74  recall=  5.49%  median_err=0.0052
+  Web Attack SQL Injection support=      9  detected=      0  recall=  0.00%  median_err=0.0051
+  Web Attack XSS           support=    661  detected=     20  recall=  3.03%  median_err=0.0060
+[artifact] D:\test-harness\evonids-full-training\artifacts\autoencoder\TRN-AE-FULL-C02138437669\model.joblib
+[sha256]   fe70ff2653b5774a4cffab4a3736f44cc04b0ca3083a75cef7433b171bed6ac2
+[complete] TRN-AE-FULL-C02138437669 succeeded
