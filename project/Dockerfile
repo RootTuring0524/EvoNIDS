@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 
 WORKDIR /app
 RUN corepack enable
@@ -9,7 +9,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm build
 
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
