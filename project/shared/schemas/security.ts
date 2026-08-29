@@ -98,7 +98,7 @@ export const ruleSchema = z.object({
   revision: z.number(),
   content: z.string(),
   rationale: z.string(),
-  qualityScore: z.number().optional(),
+  qualityScore: z.number().nullable().optional(),
 })
 
 export const rulesResponseSchema = z.object({ items: z.array(ruleSchema), total: z.number() })
@@ -152,7 +152,8 @@ export const ragEvidenceSchema = z.object({
 })
 
 export const agentAnalysisSchema = z.object({
-  displayModel: z.literal('DeepSeek V4 Pro'), runId: z.string(), state: z.enum(['completed', 'running', 'failed']), hypothesis: z.string(),
+  // Resolved on the server from the configured NUXT_DEEPSEEK_MODEL; the mock data keeps the default label.
+  displayModel: z.string().trim().min(1).max(80), runId: z.string(), state: z.enum(['completed', 'running', 'failed']), hypothesis: z.string(),
   patternDecision: z.enum(['new_pattern', 'rule_variant', 'known_match', 'benign']), summary: z.string(), recommendation: z.string(), evidenceIds: z.array(z.string()),
   steps: z.array(z.object({ id: z.string(), label: z.string(), state: z.enum(['completed', 'active', 'pending', 'failed']), tool: z.string(), durationMs: z.number(), result: z.string() })),
 })
@@ -403,6 +404,16 @@ export const integrationSettingsSchema = z.object({
   apiKeyState: z.enum(['configured', 'missing']),
 })
 
+// Server-side status of the DeepSeek integration. Never contains the API key or the full base URL.
+export const integrationsStatusSchema = integrationSettingsSchema.extend({
+  deepseek: z.object({
+    configured: z.boolean(),
+    model: z.string(),
+    baseUrlHost: z.string(),
+    displayModel: z.string().trim().min(1),
+  }),
+})
+
 export const auditEventsResponseSchema = z.object({
   items: z.array(z.object({
     id: z.string(),
@@ -431,4 +442,5 @@ export type RuleDetailApiResponse = z.infer<typeof ruleDetailSchema>
 export type RagApiResponse = z.infer<typeof ragResponseSchema>
 export type AgentApiResponse = z.infer<typeof agentAnalysisSchema>
 export type SettingsApiResponse = z.infer<typeof integrationSettingsSchema>
+export type IntegrationsStatusResponse = z.infer<typeof integrationsStatusSchema>
 export type AuditEventsApiResponse = z.infer<typeof auditEventsResponseSchema>

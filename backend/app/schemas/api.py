@@ -170,7 +170,9 @@ class AgentStep(ApiModel):
 
 
 class AgentAnalysis(ApiModel):
-    display_model: Literal["DeepSeek V4 Pro"] = "DeepSeek V4 Pro"
+    # Display name is configuration-driven on the Nuxt side ("DeepSeek · <model id>"),
+    # so any non-empty label up to 80 chars is accepted and stored verbatim.
+    display_model: str = Field(min_length=1, max_length=80, default="DeepSeek V4 Pro")
     run_id: str
     state: Literal["completed", "running", "failed"]
     hypothesis: str

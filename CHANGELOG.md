@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional console password authentication: setting `NUXT_CONSOLE_PASSWORD`
+  enables login for every console page and `/api/**` BFF route
+  (`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/status`)
+  backed by a signed HttpOnly session cookie; `NUXT_CONSOLE_SESSION_HOURS`
+  (default 24) controls the session lifetime, and leaving the password unset
+  keeps the console open for local development and demos.
+- DeepSeek integration upgrades: config-driven display model
+  (`DeepSeek · <model id>` when configured, DeepSeek V4 Pro otherwise), a
+  Settings status panel with a live connection test against the upstream
+  `/models` endpoint, and actionable setup guidance when DeepSeek is not
+  configured.
+
 ## [0.1.0] - 2026-08-28
 
 Initial public release. The detection channels shipped in this version are the

@@ -21,6 +21,20 @@ NUXT_BACKEND_ADMIN_TOKEN=use-the-same-value-as-the-backend-admin-token
 
 DeepSeek credentials remain server-only. Never commit `.env` or paste a key into source code.
 
+### Console authentication
+
+Console login is optional. Set a password to enable it:
+
+```dotenv
+NUXT_CONSOLE_PASSWORD=use-a-long-random-password
+NUXT_CONSOLE_SESSION_HOURS=24
+```
+
+- When `NUXT_CONSOLE_PASSWORD` is set, every console page and `/api/**` BFF route requires login (the login page itself is the only exception): `POST /api/auth/login` exchanges the password for a signed HttpOnly session cookie, `POST /api/auth/logout` clears it, and `GET /api/auth/status` returns `{required, authenticated}`.
+- `NUXT_CONSOLE_SESSION_HOURS` sets the session lifetime in hours and defaults to 24.
+- Leave `NUXT_CONSOLE_PASSWORD` empty to keep the console open — the intended mode for local development and demos. This is a minimal gate, not a replacement for a TLS-terminating reverse proxy in real deployments.
+- Forgot the password? There is no recovery flow: update `NUXT_CONSOLE_PASSWORD` in the uncommitted `.env` and restart the console.
+
 ## One-command local demonstration (Windows)
 
 `start-demo.ps1` starts the SQLite-backed API and the Nuxt console with one ephemeral in-memory administrator/sensor token. The token is not written to disk. The script imports only `NUXT_DEEPSEEK_API_BASE`, `NUXT_DEEPSEEK_API_KEY` and `NUXT_DEEPSEEK_MODEL` from the uncommitted root `.env`:

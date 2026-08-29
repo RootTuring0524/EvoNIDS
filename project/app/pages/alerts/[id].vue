@@ -87,9 +87,10 @@ async function runAgent() {
       agentStatus.value = 'error'
       agentError.value = result.state === 'failed' ? 'Agent 已返回失败状态，请检查失败节点后重试。' : 'Agent 返回非终态结果，请重新运行。'
     }
-  } catch {
+  } catch (error) {
+    const value = error as { data?: { statusMessage?: string; message?: string }; message?: string }
     agentStatus.value = 'error'
-    agentError.value = 'Agent 服务未返回通过契约校验的结果；画像与证据仍保持只读。'
+    agentError.value = value.data?.statusMessage || value.data?.message || 'Agent 服务未返回通过契约校验的结果；画像与证据仍保持只读。'
     if (agentAnalysis.value) {
       agentAnalysis.value = {
         ...agentAnalysis.value,

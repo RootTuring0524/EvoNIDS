@@ -15,6 +15,28 @@ const liveTime = useDateFormat(now, 'HH:mm:ss')
 onClickOutside(notificationMenu, () => { notificationOpen.value = false })
 onClickOutside(profileMenu, () => { profileOpen.value = false })
 
+const authStatus = ref<{ required: boolean; authenticated: boolean }>({ required: false, authenticated: true })
+
+onMounted(async () => {
+  try {
+    // Untyped fetch signature: Nuxt's typed route matcher overflows the type
+    // checker on this internal endpoint (TS2321).
+    const statusFetch = $fetch as unknown as (url: string) => Promise<{ required: boolean; authenticated: boolean }>
+    authStatus.value = await statusFetch('/api/auth/status')
+  } catch {
+    // Status probe failure must not break the command bar; the API guard stays authoritative.
+  }
+})
+
+async function logout() {
+  profileOpen.value = false
+  try {
+    await $fetch('/api/auth/logout', { method: 'POST' })
+  } finally {
+    window.location.assign('/login')
+  }
+}
+
 function onKeydown(event: KeyboardEvent) {
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
     event.preventDefault()
@@ -64,6 +86,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
         <div><b>Root</b><small>SOC 安全分析师</small></div>
         <NuxtLink to="/settings" @click="profileOpen=false">平台设置</NuxtLink>
         <NuxtLink to="/audit" @click="profileOpen=false">我的审计记录</NuxtLink>
+        <button v-if="authStatus.required && authStatus.authenticated" class="logout" @click="logout">退出登录</button>
       </section>
     </div>
   </header>
@@ -83,7 +106,7 @@ select option { background: var(--surface-2); color: var(--text-primary); }
 .time-select { position: relative; height: 32px; padding: 0 8px; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface-1); font-size:14px; }
 .icon-button { position: relative; display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border-subtle); border-radius: 7px; background: var(--surface-1); color: var(--text-secondary); cursor: pointer; }.icon-button:hover { color: var(--text-primary); border-color: var(--border-default); }.has-alert::after { position: absolute; top: 6px; right: 6px; width: 5px; height: 5px; background: var(--severity-critical); border: 1px solid var(--surface-1); border-radius: 50%; content: ''; }
 .avatar { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--border-default); border-radius: 7px; background: var(--surface-3); color: var(--text-primary); font-size: 12px; cursor: pointer; }
-.menu-wrap{position:relative}.top-popover{position:absolute;top:39px;right:0;z-index:40;width:300px;border:1px solid var(--border-default);border-radius:9px;background:var(--surface-1);box-shadow:0 16px 40px rgba(0,0,0,.28);color:var(--text-primary)}.top-popover header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border-subtle)}.top-popover header b{font-size:14px}.top-popover header span{color:var(--status-warning);font-size:12px}.notification-popover>a{display:grid;grid-template-columns:8px 1fr;gap:9px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:inherit;text-decoration:none}.notification-popover>a:last-child{border-bottom:0}.notification-popover>a:hover,.profile-popover>a:hover{background:var(--surface-2)}.notification-popover>a>i{width:7px;height:7px;border-radius:50%;background:var(--severity-info)}.notification-popover>a>i.critical{background:var(--severity-critical)}.notification-popover>a>i.warning{background:var(--status-warning)}.notification-popover b,.notification-popover small{display:block}.notification-popover b{font-size:13px}.notification-popover small{margin-top:2px;color:var(--text-tertiary);font-size:12px}.profile-popover{width:210px;padding:6px}.profile-popover>div{padding:8px}.profile-popover>div b,.profile-popover>div small{display:block}.profile-popover>div b{font-size:14px}.profile-popover>div small{margin-top:2px;color:var(--text-tertiary);font-size:12px}.profile-popover>a{display:block;padding:8px;border-radius:6px;color:var(--text-secondary);font-size:13px;text-decoration:none}
+.menu-wrap{position:relative}.top-popover{position:absolute;top:39px;right:0;z-index:40;width:300px;border:1px solid var(--border-default);border-radius:9px;background:var(--surface-1);box-shadow:0 16px 40px rgba(0,0,0,.28);color:var(--text-primary)}.top-popover header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border-subtle)}.top-popover header b{font-size:14px}.top-popover header span{color:var(--status-warning);font-size:12px}.notification-popover>a{display:grid;grid-template-columns:8px 1fr;gap:9px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border-subtle);color:inherit;text-decoration:none}.notification-popover>a:last-child{border-bottom:0}.notification-popover>a:hover,.profile-popover>a:hover{background:var(--surface-2)}.notification-popover>a>i{width:7px;height:7px;border-radius:50%;background:var(--severity-info)}.notification-popover>a>i.critical{background:var(--severity-critical)}.notification-popover>a>i.warning{background:var(--status-warning)}.notification-popover b,.notification-popover small{display:block}.notification-popover b{font-size:13px}.notification-popover small{margin-top:2px;color:var(--text-tertiary);font-size:12px}.profile-popover{width:210px;padding:6px}.profile-popover>div{padding:8px}.profile-popover>div b,.profile-popover>div small{display:block}.profile-popover>div b{font-size:14px}.profile-popover>div small{margin-top:2px;color:var(--text-tertiary);font-size:12px}.profile-popover>a{display:block;padding:8px;border-radius:6px;color:var(--text-secondary);font-size:13px;text-decoration:none}.profile-popover>.logout{display:block;width:100%;margin-top:2px;padding:8px;border:0;border-top:1px solid var(--border-subtle);border-radius:0 0 6px 6px;background:transparent;color:var(--status-error);font-size:13px;text-align:left;cursor:pointer}.profile-popover>.logout:hover{background:color-mix(in srgb,var(--status-error) 8%,var(--surface-2))}
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
 @media (max-width: 1100px) { .live-time, .search-trigger span, .search-trigger kbd { display: none; }.search-trigger { flex: 0 0 32px; min-width: 32px; padding: 0; justify-content: center; }.time-select { width: 32px; flex: 0 0 32px; justify-content: center; padding: 0; }.time-select select { position: absolute; inset: 0; width: 100%; opacity: 0; }.time-select > svg:last-child { display: none; } }
 @media (max-width: 900px) { .menu-button { display: inline-flex; }.command-bar { padding: 0 12px; } }

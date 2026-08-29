@@ -76,7 +76,8 @@ export interface RuleRecord {
   revision: number
   content: string
   rationale: string
-  qualityScore?: number
+  // The FastAPI contract emits an explicit null while a rule awaits replay validation.
+  qualityScore?: number | null
 }
 
 export interface ModelRecord {
@@ -201,7 +202,7 @@ export interface AgentStepRecord {
 }
 
 export interface AgentAnalysis {
-  displayModel: 'DeepSeek V4 Pro'
+  displayModel: string
   runId: string
   state: 'completed' | 'running' | 'failed'
   hypothesis: string

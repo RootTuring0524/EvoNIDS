@@ -19,6 +19,12 @@ export default defineNuxtConfig({
       apiKey: process.env.NUXT_DEEPSEEK_API_KEY || '',
       model: process.env.NUXT_DEEPSEEK_MODEL || '',
     },
+    console: {
+      // Set NUXT_CONSOLE_PASSWORD to require login for every console page and
+      // BFF route; an empty value keeps the console open (local dev/demo default).
+      password: process.env.NUXT_CONSOLE_PASSWORD || '',
+      sessionHours: Number(process.env.NUXT_CONSOLE_SESSION_HOURS) || 24,
+    },
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api',
       useMockApi: process.env.NUXT_PUBLIC_USE_MOCK_API !== 'false',

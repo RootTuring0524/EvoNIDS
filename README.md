@@ -135,6 +135,8 @@ NUXT_DEEPSEEK_MODEL=deepseek-chat
 
 With a key configured, "运行 Agent 研判" on an alert produces a validated analysis **plus a schema-checked candidate rule proposal** (conditions restricted to the versioned feature whitelist) that you can save as a candidate and walk through the replay → confirm → deploy lifecycle. Without a key, everything else keeps working.
 
+The Settings page includes a DeepSeek status panel — configuration badge, model ID, API base URL and a **test connection** button that really probes the upstream `/models` endpoint — and the model display name shown across the UI and audit log is config-driven: `DeepSeek · <model id>` when `NUXT_DEEPSEEK_MODEL` is set, DeepSeek V4 Pro otherwise. Without a DeepSeek configuration, agent analysis returns actionable setup guidance (in Chinese) instead of a bare failure.
+
 ## The rule evolution loop
 
 1. Dual-channel models score flows; fusion produces an alert with per-channel evidence.
@@ -194,7 +196,8 @@ MODEL_CARD.md / DATA_CARD.md   honest model & dataset documentation
 - DeepSeek credentials and admin/sensor tokens are **server-side only**; the browser never sees them. `.env` is git-ignored — commit only the templates.
 - EVE ingestion is capped (10 MiB per file), rejects malformed lines individually, and deduplicates by event identity. Outside development, sensor and admin tokens are mandatory.
 - Untrusted knowledge text is quarantined by prompt-injection marker detection (a heuristic, not a complete defense) before it can reach the agent; agent evidence IDs are validated against the trusted subset on the server.
-- The v0.1 console intentionally ships **without browser-side authentication** — the Nuxt BFF attaches the admin token server-side. Keep the console bound to localhost (the default) and do not expose it to untrusted networks.
+- Console authentication is **optional and off by default**. Set `NUXT_CONSOLE_PASSWORD` to enable login: `POST /api/auth/login` exchanges the password for a signed HttpOnly session cookie (`NUXT_CONSOLE_SESSION_HOURS` controls its lifetime, default 24 hours), after which every page and `/api/**` BFF route requires login except the login page itself.
+- Leaving `NUXT_CONSOLE_PASSWORD` unset keeps the console open — the intended mode for local development and demos. The password is a minimal gate so that not just anyone who can reach the port can drive rule deployment or model training; it is not a substitute for placing the console behind a TLS-terminating reverse proxy in real deployments.
 - The demo dataset is the public CICIDS2017 research capture — no real organizational traffic. See [DATA_CARD.md](DATA_CARD.md).
 
 ## Roadmap

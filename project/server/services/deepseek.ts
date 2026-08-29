@@ -8,6 +8,16 @@ interface DeepSeekServerConfig {
   model: string
 }
 
+// Measured deepseek-v4-pro latency for the rule-proposal prompt is ~25-40s;
+// the previous 30s budget aborted legitimate calls before the model finished,
+// surfacing as a 502 in the console.
+const DEEPSEEK_TIMEOUT_MS = 90_000
+
+// The displayed agent name follows the configured model id; only the mock data keeps the default label.
+export function resolveDisplayModel(config: Pick<DeepSeekServerConfig, 'model'>) {
+  return config.model ? `DeepSeek · ${config.model}` : 'DeepSeek V4 Pro'
+}
+
 export function parseDeepSeekAgentResponse(payload: unknown): AgentAnalysis {
   const envelope = deepSeekChatCompletionSchema.parse(payload)
   const content = envelope.choices[0]!.message.content
@@ -60,7 +70,10 @@ export async function analyzeProfileWithDeepSeek(
   config: DeepSeekServerConfig,
 ) {
   if (!config.apiBase || !config.apiKey || !config.model) {
-    throw createError({ statusCode: 503, statusMessage: 'DeepSeek server configuration is incomplete' })
+    throw createError({
+      statusCode: 503,
+      statusMessage: '未配置 DeepSeek：请在 .env 设置 NUXT_DEEPSEEK_API_BASE / NUXT_DEEPSEEK_API_KEY / NUXT_DEEPSEEK_MODEL 后重启 Nuxt 服务器',
+    })
   }
 
   const trustedEvidence = selectTrustedRagEvidence(evidence)
@@ -70,15 +83,28 @@ export async function analyzeProfileWithDeepSeek(
   }
 
   const started = performance.now()
+  let payload: { choices?: Array<{ message?: Record<string, unknown>; finish_reason?: string }> } | undefined
+  let finding!: ReturnType<typeof parseDeepSeekFindingResponse>
   try {
-    const payload = await $fetch(`${config.apiBase.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      timeout: 30_000,
-      headers: { Authorization: `Bearer ${config.apiKey}` },
-      body: {
-        model: config.model,
-        temperature: 0.1,
-        max_tokens: 1600,
+    // deepseek-v4-pro spends output budget on internal reasoning; when reasoning
+    // exhausts max_tokens the message arrives with empty content. One automatic
+    // retry gives the model a second chance on this intermittent behavior.
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        // Untyped upstream fetch: Nuxt's typed route matcher overflows the type
+        // checker on non-console URLs now that the internal route union is large.
+        const upstreamFetch = $fetch as unknown as (
+          url: string,
+          options?: Record<string, unknown>,
+        ) => Promise<{ choices?: Array<{ message?: Record<string, unknown>; finish_reason?: string }> }>
+        payload = await upstreamFetch(`${config.apiBase.replace(/\/$/, '')}/chat/completions`, {
+          method: 'POST',
+          timeout: DEEPSEEK_TIMEOUT_MS,
+          headers: { Authorization: `Bearer ${config.apiKey}` },
+          body: {
+            model: config.model,
+            temperature: 0.1,
+            max_tokens: 8000,
         messages: [
           {
             role: 'system',
@@ -106,9 +132,15 @@ export async function analyzeProfileWithDeepSeek(
           },
         ],
       },
-    })
+        })
+        finding = parseDeepSeekFindingResponse(payload)
+        break
+      } catch (attemptError) {
+        if (attempt === 2) throw attemptError
+        console.warn('[deepseek] attempt', attempt, 'did not satisfy the output contract; retrying once')
+      }
+    }
 
-    const finding = parseDeepSeekFindingResponse(payload)
     const trustedIds = new Set(trustedEvidence.map((item) => item.id))
     const analysisIds = new Set(finding.evidenceIds)
     if (
@@ -120,7 +152,7 @@ export async function analyzeProfileWithDeepSeek(
 
     const durationMs = Math.max(1, Math.round(performance.now() - started))
     const analysis = agentAnalysisSchema.parse({
-      displayModel: 'DeepSeek V4 Pro',
+      displayModel: resolveDisplayModel(config),
       runId: `AGENT-RUN-${Date.now().toString(36).toUpperCase()}`,
       state: 'completed',
       ...finding,
@@ -152,8 +184,27 @@ export async function analyzeProfileWithDeepSeek(
       ],
     })
     return { analysis, proposal: finding.proposedRule }
-  } catch {
+  } catch (error) {
     // Upstream bodies, headers and credentials are deliberately not logged or reflected.
-    throw createError({ statusCode: 502, statusMessage: 'DeepSeek upstream response failed validation' })
+    // Shape metadata (message keys / finish reason / content length) is enough to
+    // diagnose empty-content and truncation failures without exposing any content.
+    const shape =
+      typeof error === 'object' && error && 'issues' in error
+        ? JSON.stringify(
+            (error as { issues: Array<{ path: (string | number)[]; code: string; message: string }> }).issues.map(
+              (issue) => ({ path: issue.path.join('.'), code: issue.code }),
+            ),
+          )
+        : (() => {
+            const envelope = payload as { choices?: Array<{ message?: Record<string, unknown>; finish_reason?: string }> } | undefined
+            const message = envelope?.choices?.[0]?.message
+            return JSON.stringify({
+              messageKeys: message ? Object.keys(message) : null,
+              finishReason: envelope?.choices?.[0]?.finish_reason ?? null,
+              contentLength: typeof message?.content === 'string' ? message.content.length : null,
+            })
+          })()
+    console.error('[deepseek] upstream call failed:', (error as Error)?.name, shape)
+    throw createError({ statusCode: 502, statusMessage: 'DeepSeek 研判未完成：模型服务响应失败或未通过输出校验，请稍后重试' })
   }
 }

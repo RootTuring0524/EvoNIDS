@@ -37,7 +37,7 @@ const failedFlow: RuleStage[] = ['candidate', 'validating', 'rejected']
 const repairFlow: RuleStage[] = ['rejected', 'repaired', 'validating', 'validated', 'confirmed']
 
 function quality(rule: RuleRecord) {
-  return rule.qualityScore ?? (rule.stage === 'deployed' ? 94 : null)
+  return rule.qualityScore ?? null
 }
 
 function openRule(id: string) {
