@@ -41,11 +41,12 @@ export function passwordMatches(supplied: string, expected: string): boolean {
   return timingSafeEqual(left, right)
 }
 
-export function sessionCookieOptions(sessionHours: number) {
+export function sessionCookieOptions(sessionHours: number, secure = false) {
   return {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
     maxAge: sessionHours * 3_600,
+    ...(secure ? { secure: true as const } : {}),
   } as const
 }

@@ -62,6 +62,15 @@ export const sensorSchema = z.object({
   state: sensorStateSchema, healthReason: z.string(), lastSeenAt: z.string().nullable(), flowCount: z.number().int().nonnegative(),
   alertCount: z.number().int().nonnegative(), criticalAlerts: z.number().int().nonnegative(), acceptedEvents: z.number().int().nonnegative(),
   rejectedEvents: z.number().int().nonnegative(), ingestSource: z.string(), lastError: z.string().nullable(), createdAt: z.string(), updatedAt: z.string(),
+  // Online ingestion-agent telemetry added by the backend heartbeat API. Optional
+  // so pre-extension/mock registry payloads still parse; real backend always sends them.
+  agentVersion: z.string().nullable().optional(),
+  lastHeartbeatAt: z.string().nullable().optional(),
+  clockSkewSeconds: z.number().nullable().optional(),
+  spoolDepth: z.number().int().nonnegative().optional(),
+  droppedEvents: z.number().int().nonnegative().optional(),
+  expectedIntervalSeconds: z.number().int().positive().optional(),
+  capabilities: z.array(z.string()).optional(),
 })
 export const sensorSummarySchema = z.object({
   total: z.number().int().nonnegative(), online: z.number().int().nonnegative(), degraded: z.number().int().nonnegative(),
@@ -69,6 +78,183 @@ export const sensorSummarySchema = z.object({
   alerts: z.number().int().nonnegative(), rejectedEvents: z.number().int().nonnegative(),
 })
 export const sensorsResponseSchema = z.object({ items: z.array(sensorSchema), summary: sensorSummarySchema })
+
+// ---- Sensor data-quality metrics (GET /sensors/health) ---------------------
+// `measured: false` is an explicit "not measured" contract: the field carries no
+// value in the window and must never be rendered as zero.
+export const sensorMetricSchema = z.object({
+  value: z.number().nullable(),
+  measured: z.boolean(),
+  unit: z.string(),
+  note: z.string().nullable(),
+})
+export type SensorMetric = z.infer<typeof sensorMetricSchema>
+
+export const sensorDataQualitySchema = z.object({
+  sensorId: z.string(),
+  state: sensorStateSchema,
+  healthReason: z.string(),
+  windowSeconds: z.number().int().min(60).max(604800),
+  batches: z.number().int().nonnegative(),
+  eventsAccepted: z.number().int().nonnegative(),
+  eventsRejected: z.number().int().nonnegative(),
+  eventsDuplicate: z.number().int().nonnegative(),
+  rejectRate: sensorMetricSchema,
+  duplicateRate: sensorMetricSchema,
+  ingestLatencyP50Ms: sensorMetricSchema,
+  ingestLatencyP95Ms: sensorMetricSchema,
+  clockSkewSeconds: sensorMetricSchema,
+  gapCount: sensorMetricSchema,
+  estimatedMissingSeconds: sensorMetricSchema,
+  spoolDepth: z.number().int().nonnegative(),
+  droppedEvents: z.number().int().nonnegative(),
+  expectedIntervalSeconds: z.number().int().positive(),
+  lastBatchAt: z.string().nullable(),
+  lastEventAt: z.string().nullable(),
+  lastHeartbeatAt: z.string().nullable(),
+})
+
+export const sensorHealthResponseSchema = z.object({
+  items: z.array(sensorDataQualitySchema),
+})
+export type SensorHealthApiResponse = z.infer<typeof sensorHealthResponseSchema>
+
+// ---- Ingestion batch ledger (GET /sensors/{sensorId}/batches) --------------
+export const ingestionBatchStatusSchema = z.enum(['accepted', 'partial', 'rejected'])
+export const ingestionBatchSchema = z.object({
+  id: z.string(),
+  sensorId: z.string(),
+  batchId: z.string(),
+  receivedAt: z.string(),
+  contentSha256: z.string(),
+  encoding: z.string(),
+  payloadBytes: z.number().int().nonnegative(),
+  eventCount: z.number().int().nonnegative(),
+  acceptedCount: z.number().int().nonnegative(),
+  duplicateCount: z.number().int().nonnegative(),
+  rejectedCount: z.number().int().nonnegative(),
+  createdFlows: z.number().int().nonnegative(),
+  createdAlerts: z.number().int().nonnegative(),
+  firstEventAt: z.string().nullable(),
+  lastEventAt: z.string().nullable(),
+  clockSkewSeconds: z.number().nullable(),
+  status: ingestionBatchStatusSchema,
+})
+
+export const ingestionBatchesResponseSchema = z.object({
+  items: z.array(ingestionBatchSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+export type IngestionBatchesApiResponse = z.infer<typeof ingestionBatchesResponseSchema>
+
+// ---- Online detection status (GET /detections/status) ----------------------
+export const detectionModeSchema = z.enum(['disabled', 'shadow', 'enabled'])
+export const detectionChannelSchema = z.enum(['suricata', 'baseline', 'autoencoder'])
+export const detectionChannelStatusSchema = z.object({
+  available: z.boolean(),
+  modelId: z.string().nullable(),
+  version: z.string().nullable(),
+  contractMatches: z.boolean(),
+  reason: z.string().nullable(),
+})
+
+export const detectionStatusSchema = z.object({
+  mode: detectionModeSchema,
+  featureVersion: z.string(),
+  channels: z.record(z.string(), detectionChannelStatusSchema),
+  alerting: z.boolean(),
+  notes: z.array(z.string()),
+})
+export type DetectionStatusApiResponse = z.infer<typeof detectionStatusSchema>
+
+// ---- Detection signals / risk assessments ----------------------------------
+export const signalDecisionSchema = z.enum(['alert', 'benign', 'abstain'])
+export const assessmentDecisionSchema = z.enum(['malicious', 'suspicious', 'benign', 'abstain'])
+
+export const detectionSignalDetailSchema = z.object({
+  missingFields: z.array(z.string()),
+  windowSeconds: z.number(),
+  contextFeatures: z.record(z.string(), z.number()),
+  prediction: z.string().optional(),
+  topK: z.array(z.object({ label: z.string(), probability: z.number() })).optional(),
+  reconstructionError: z.number().optional(),
+  errorThreshold: z.number().optional(),
+  exceedsThreshold: z.boolean().optional(),
+  deviatingFeatures: z.array(z.object({
+    field: z.string(), observed: z.number(), baseline: z.number(), deviation: z.number(),
+  })).optional(),
+  calibration: z.string().optional(),
+  featureContract: z.string().optional(),
+})
+
+export const detectionSignalSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  flowId: z.string().nullable(),
+  alertId: z.string().nullable(),
+  sensorId: z.string(),
+  channel: detectionChannelSchema,
+  channelVersion: z.string(),
+  modelId: z.string().nullable(),
+  rawScore: z.number(),
+  calibratedScore: z.number(),
+  threshold: z.number(),
+  decision: signalDecisionSchema,
+  uncertainty: z.number(),
+  featureVersion: z.string(),
+  featureSource: z.string(),
+  imputedFeatures: z.array(z.string()),
+  latencyMs: z.number(),
+  degraded: z.boolean(),
+  degradedReason: z.string().nullable(),
+  detail: detectionSignalDetailSchema,
+})
+
+export const detectionSignalsResponseSchema = z.object({
+  items: z.array(detectionSignalSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+export type DetectionSignalsApiResponse = z.infer<typeof detectionSignalsResponseSchema>
+
+export const riskAssessmentInputSchema = z.object({
+  signalId: z.string().nullable(),
+  channel: detectionChannelSchema,
+  channelVersion: z.string(),
+  modelId: z.string().nullable(),
+  rawScore: z.number(),
+  calibratedScore: z.number(),
+  decision: signalDecisionSchema,
+  imputedFeatures: z.array(z.string()),
+  degradedReason: z.string().nullable(),
+})
+
+export const riskAssessmentSchema = z.object({
+  id: z.string(),
+  createdAt: z.string(),
+  flowId: z.string().nullable(),
+  alertId: z.string().nullable(),
+  sensorId: z.string(),
+  signalIds: z.array(z.string()),
+  inputs: z.array(riskAssessmentInputSchema),
+  weights: z.record(z.string(), z.number()),
+  finalScore: z.number(),
+  uncertainty: z.number(),
+  decision: assessmentDecisionSchema,
+  explanation: z.string(),
+  degradedReasons: z.array(z.string()),
+  mode: z.string(),
+})
+
+export const detectionFlowDetailSchema = z.object({
+  flowId: z.string(),
+  signals: z.array(detectionSignalSchema),
+  assessments: z.array(riskAssessmentSchema),
+})
+export type DetectionFlowDetailApiResponse = z.infer<typeof detectionFlowDetailSchema>
 export const overviewMetricsSchema = z.object({
   pendingAlerts: z.number().int().nonnegative(), highRiskAlerts: z.number().int().nonnegative(), unassignedAlerts: z.number().int().nonnegative(),
   flows: z.number().int().nonnegative(), anomalousFlows: z.number().int().nonnegative(), candidateRules: z.number().int().nonnegative(),
@@ -444,3 +630,422 @@ export type AgentApiResponse = z.infer<typeof agentAnalysisSchema>
 export type SettingsApiResponse = z.infer<typeof integrationSettingsSchema>
 export type IntegrationsStatusResponse = z.infer<typeof integrationsStatusSchema>
 export type AuditEventsApiResponse = z.infer<typeof auditEventsResponseSchema>
+
+// Case identifiers follow the backend CASE-<12 uppercase hex> format
+// (mirrors CASE_ID_PATTERN in backend/app/api/routes/audit.py).
+export const caseIdSchema = z
+  .string()
+  .regex(/^CASE-[A-F0-9]{12}$/, '案件编号格式应为 CASE- 后跟 12 位大写十六进制字符')
+export type CaseId = z.infer<typeof caseIdSchema>
+
+export const caseSeveritySchema = z.enum(['critical', 'high', 'medium', 'low'])
+export const caseStatusSchema = z.enum(['open', 'investigating', 'contained', 'closed', 'archived'])
+
+export const caseRecordSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  severity: caseSeveritySchema,
+  status: caseStatusSchema,
+  assignee: z.string().nullable(),
+  createdBy: z.string(),
+  alertCount: z.number().int().nonnegative(),
+  highestRiskScore: z.number().nonnegative(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+})
+
+export const casesResponseSchema = z.object({
+  items: z.array(caseRecordSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+
+export type CasesApiResponse = z.infer<typeof casesResponseSchema>
+
+export const caseTimelineEventSchema = z.object({
+  id: z.string(),
+  eventType: z.string(),
+  actor: z.string(),
+  note: z.string().nullable(),
+  createdAt: z.string(),
+})
+
+export const caseDetailSchema = z.object({
+  case: caseRecordSchema,
+  alerts: z.array(alertSchema),
+  timeline: z.array(caseTimelineEventSchema),
+})
+
+export const caseSuggestionSchema = z.object({
+  caseId: z.string(),
+  caseTitle: z.string(),
+  caseStatus: caseStatusSchema,
+  sharedIps: z.array(z.string()),
+  matchingAlertIds: z.array(z.string()),
+  updatedAt: z.string(),
+})
+
+export const caseSuggestionResponseSchema = z.object({
+  items: z.array(caseSuggestionSchema),
+})
+
+export const entityRecordSchema = z.object({
+  id: z.string(),
+  entityType: z.string(),
+  value: z.string(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+  eventCount: z.number().int().nonnegative(),
+  sensorIds: z.array(z.string()),
+  createdAt: z.string(),
+})
+
+export const entitiesResponseSchema = z.object({
+  items: z.array(entityRecordSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+
+export const entityRelationItemSchema = z.object({
+  id: z.string(),
+  relationType: z.string(),
+  otherEntityId: z.string(),
+  otherEntityValue: z.string(),
+  eventCount: z.number().int().nonnegative(),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+})
+
+export const entityDetailSchema = entityRecordSchema.extend({
+  relations: z.array(entityRelationItemSchema),
+})
+
+export const evidenceRecordSchema = z.object({
+  id: z.string(),
+  sourceType: z.string(),
+  sensorId: z.string(),
+  eventType: z.string(),
+  externalId: z.string(),
+  observedAt: z.string(),
+  receivedAt: z.string(),
+  contentSha256: z.string().length(64),
+  integrity: z.string(),
+  dataMissing: z.string(),
+  parserVersion: z.string(),
+  redacted: z.boolean(),
+  sourceRefType: z.string().nullable(),
+  sourceRefId: z.string().nullable(),
+  artifactSizeBytes: z.number().int().nonnegative(),
+  createdAt: z.string(),
+})
+
+export const evidenceListResponseSchema = z.object({
+  items: z.array(evidenceRecordSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+
+export const evidenceDetailSchema = evidenceRecordSchema.extend({
+  fields: z.record(z.unknown()),
+  artifactText: z.string().nullable(),
+})
+
+export type EntitiesApiResponse = z.infer<typeof entitiesResponseSchema>
+export type EvidenceListApiResponse = z.infer<typeof evidenceListResponseSchema>
+export type EvidenceDetailApiResponse = z.infer<typeof evidenceDetailSchema>
+
+// ---- Phase 4: AI investigations -------------------------------------------
+// FastAPI /investigations contracts: run records, per-claim evidence
+// citations, tool executions, analyst feedback and their read envelopes.
+export const investigationStateSchema = z.enum([
+  'queued', 'running', 'succeeded', 'insufficient_evidence', 'degraded', 'failed', 'cancelled',
+])
+export const investigationClaimTypeSchema = z.enum(['observation', 'inference', 'recommendation', 'rejected'])
+export const feedbackVerdictSchema = z.enum(['agree', 'disagree', 'unsure'])
+
+export const investigationRunSchema = z.object({
+  id: z.string().min(1),
+  alertId: z.string().min(1),
+  caseId: z.string().nullable(),
+  requestedBy: z.string().min(1),
+  state: investigationStateSchema,
+  mode: z.string(),
+  provider: z.string(),
+  modelId: z.string(),
+  promptTemplateVersion: z.string(),
+  toolRegistryVersion: z.string(),
+  knowledgeVersion: z.string(),
+  maxToolCalls: z.number().int().min(1).max(6),
+  budgetUsd: z.number().nullable(),
+  inputEvidenceIds: z.array(z.string()),
+  // Retrieval snapshot is an opaque backend object; scalar/leaf values are
+  // rendered verbatim by the UI without assuming its internal keys.
+  retrieval: z.record(z.string(), z.unknown()),
+  summary: z.string().nullable(),
+  uncertainty: z.number().nullable(),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  costEstimateUsd: z.number().nullable(),
+  latencyMs: z.number().nullable(),
+  attempts: z.number().int().nonnegative(),
+  degradedReasons: z.array(z.string()),
+  errorMessage: z.string().nullable(),
+  startedAt: z.string().nullable(),
+  completedAt: z.string().nullable(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+})
+
+export const investigationClaimSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  claimIndex: z.number().int().nonnegative(),
+  claimType: investigationClaimTypeSchema,
+  statement: z.string().min(1),
+  evidenceIds: z.array(z.string()),
+  confidence: z.number(),
+  uncertainty: z.number(),
+  mitreTechniques: z.array(z.string()),
+  verified: z.boolean(),
+  rejectionReason: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const toolExecutionStateSchema = z.enum(['completed', 'rejected', 'failed'])
+export const toolExecutionSchema = z.object({
+  id: z.string().min(1),
+  runId: z.string().min(1),
+  toolName: z.string().min(1),
+  toolVersion: z.string(),
+  arguments: z.record(z.string(), z.unknown()),
+  resultSummary: z.string().nullable(),
+  state: toolExecutionStateSchema,
+  durationMs: z.number().nonnegative(),
+  error: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const feedbackReadSchema = z.object({
+  id: z.string().min(1),
+  objectType: z.string().min(1),
+  objectId: z.string().min(1),
+  verdict: feedbackVerdictSchema,
+  label: z.string().nullable(),
+  comment: z.string().nullable(),
+  actor: z.string(),
+  createdAt: z.string().min(1),
+})
+
+export const investigationsListResponseSchema = z.object({
+  items: z.array(investigationRunSchema),
+  total: z.number().int().nonnegative(),
+  page: z.number().int().positive(),
+  pageSize: z.number().int().positive(),
+})
+
+export const investigationDetailResponseSchema = z.object({
+  run: investigationRunSchema,
+  claims: z.array(investigationClaimSchema),
+  tools: z.array(toolExecutionSchema),
+  feedback: z.array(feedbackReadSchema),
+})
+
+// Request bodies accepted by the BFF (backend keeps authority on further rules).
+export const investigationCreateRequestSchema = z.object({
+  alertId: z.string().trim().min(1).max(160),
+  caseId: z.string().trim().max(32).optional(),
+  maxToolCalls: z.number().int().min(1).max(6).optional(),
+  budgetUsd: z.number().positive().optional(),
+})
+
+export const feedbackCreateRequestSchema = z.object({
+  objectType: z.string().trim().min(1).max(64),
+  objectId: z.string().trim().min(1).max(160),
+  verdict: feedbackVerdictSchema,
+  label: z.string().trim().max(200).optional(),
+  comment: z.string().trim().max(2000).optional(),
+})
+
+// ---- Phase 4: LLM gateway --------------------------------------------------
+export const llmCircuitStateSchema = z.enum(['open', 'closed'])
+export const llmStatusBudgetSchema = z.object({
+  day: z.string(),
+  spentUsd: z.number().nonnegative(),
+  dailyBudgetUsd: z.number().nonnegative(),
+  runBudgetUsd: z.number().nonnegative(),
+  remainingUsd: z.number(),
+})
+export const llmStatusSchema = z.object({
+  provider: z.string(),
+  model: z.string(),
+  available: z.boolean(),
+  circuit: z.object({
+    state: llmCircuitStateSchema,
+    consecutiveFailures: z.number().int().nonnegative(),
+    resetInSeconds: z.number().nullable(),
+  }),
+  concurrencyLimit: z.number().int().nonnegative(),
+  timeoutSeconds: z.number().int().nonnegative(),
+  maxAttempts: z.number().int().nonnegative(),
+  budget: llmStatusBudgetSchema,
+  stats: z.record(z.string(), z.number()),
+  pricingKnown: z.boolean(),
+})
+export const llmProbeResultSchema = z.object({
+  available: z.boolean(),
+  models: z.array(z.string()),
+  configuredModelExists: z.boolean(),
+  error: z.string().nullable(),
+})
+
+// ---- Phase 5: rule governance ----------------------------------------------
+export const sandboxCapabilitySchema = z.object({
+  suricataAvailable: z.boolean(),
+  binary: z.string().nullable(),
+  executorVersion: z.string(),
+  note: z.string().nullable(),
+})
+
+export const ruleIRVersionSchema = z.object({
+  id: z.string().min(1),
+  ruleId: z.string().min(1),
+  version: z.number().int().positive(),
+  sid: z.number().int().nullable(),
+  rev: z.number().int().nullable(),
+  irDigest: z.string(),
+  irDocument: z.record(z.string(), z.unknown()),
+  suricataText: z.string().nullable(),
+  state: z.string(),
+  createdBy: z.string(),
+  createdAt: z.string().min(1),
+})
+
+export const ruleSandboxRunStatusSchema = z.enum([
+  'blocked', 'partial', 'validated', 'validation_failed', 'failed',
+])
+export const ruleSandboxMetricsSchema = z.object({
+  normalFlows: z.number().int().nonnegative(),
+  maliciousFlows: z.number().int().nonnegative(),
+  truePositives: z.number().int().nonnegative(),
+  falsePositives: z.number().int().nonnegative(),
+  falseNegatives: z.number().int().nonnegative(),
+  // Unmeasured metrics are serialised as null by the backend and must stay null
+  // so the UI can render 未测量 instead of a fabricated 0.
+  recall: z.number().nullable(),
+  precision: z.number().nullable(),
+  f1: z.number().nullable(),
+  falsePositiveRate: z.number().nullable(),
+  falsePositivesPerMillion: z.number().nullable(),
+  replaySeconds: z.number().nonnegative().nullable(),
+  peakRssKb: z.number().nonnegative().nullable(),
+  // Explicit per-metric measurement flags; measured:false must render as 未测量.
+  measured: z.record(z.string(), z.boolean()),
+})
+export const ruleSandboxCheckSchema = z.object({
+  label: z.string(),
+  passed: z.boolean(),
+  note: z.string(),
+})
+export const ruleSandboxRunSchema = z.object({
+  id: z.string().min(1),
+  ruleId: z.string().min(1),
+  ruleVersionId: z.string().min(1),
+  status: ruleSandboxRunStatusSchema,
+  suricataAvailable: z.boolean(),
+  suricataVersion: z.string().nullable(),
+  syntaxPassed: z.boolean(),
+  executorVersion: z.string(),
+  // The API stores the PCAP paths it was given (or null); it is not a boolean
+  // switch, so the response schema must accept a string or null.
+  normalPcap: z.string().nullable(),
+  maliciousPcap: z.string().nullable(),
+  metrics: ruleSandboxMetricsSchema,
+  checks: z.array(ruleSandboxCheckSchema),
+  passed: z.boolean(),
+  blockedReason: z.string().nullable(),
+  detail: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const ruleDeploymentStateSchema = z.enum(['canary', 'deployed', 'rolled_back'])
+export const ruleDeploymentSchema = z.object({
+  id: z.string().min(1),
+  ruleId: z.string().min(1),
+  ruleVersionId: z.string().min(1),
+  sensorGroupId: z.string().min(1),
+  state: ruleDeploymentStateSchema,
+  deployedBy: z.string(),
+  deployedAt: z.string(),
+  promotedAt: z.string().nullable(),
+  rolledBackAt: z.string().nullable(),
+  rollbackReason: z.string().nullable(),
+  monitoring: z.record(z.string(), z.unknown()),
+  previousVersionId: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+export const ruleDeploymentsResponseSchema = z.object({
+  items: z.array(ruleDeploymentSchema),
+})
+
+export const sensorGroupStageSchema = z.enum(['canary', 'production'])
+export const sensorGroupSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  description: z.string().nullable(),
+  sensorIds: z.array(z.string()),
+  stage: sensorGroupStageSchema,
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+})
+
+// Request bodies accepted by the BFF for rule-governance actions.
+export const irCompileRequestSchema = z.object({
+  ir: z.record(z.string(), z.unknown()),
+  sid: z.number().int().positive().max(2147483647).optional(),
+})
+export const sandboxRunRequestSchema = z.object({
+  normalPcap: z.boolean().optional(),
+  maliciousPcap: z.boolean().optional(),
+  maliciousFlows: z.number().int().nonnegative().optional(),
+  normalFlows: z.number().int().nonnegative().optional(),
+  recallFloor: z.number().min(0).max(1).optional(),
+  falsePositivesPerMillionCeiling: z.number().min(0).max(1000000).optional(),
+})
+export const ruleDeploymentCreateRequestSchema = z.object({
+  ruleVersionId: z.string().trim().min(1).max(160),
+  sensorGroupId: z.string().trim().min(1).max(160),
+  state: z.enum(['canary', 'deployed']),
+  note: z.string().trim().max(500).optional(),
+})
+export const ruleDeploymentPromoteRequestSchema = z.object({
+  note: z.string().trim().max(500).optional(),
+  targetGroupId: z.string().trim().max(160).optional(),
+})
+export const ruleDeploymentRollbackRequestSchema = z.object({
+  reason: z.string().trim().min(10).max(1000),
+})
+export const sensorGroupCreateRequestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(500).optional(),
+  sensorIds: z.array(z.string().trim().min(1)).max(1000).default([]),
+  stage: sensorGroupStageSchema,
+})
+
+export type InvestigationRunApiResponse = z.infer<typeof investigationRunSchema>
+export type InvestigationClaimApiResponse = z.infer<typeof investigationClaimSchema>
+export type ToolExecutionApiResponse = z.infer<typeof toolExecutionSchema>
+export type FeedbackApiResponse = z.infer<typeof feedbackReadSchema>
+export type InvestigationsListApiResponse = z.infer<typeof investigationsListResponseSchema>
+export type InvestigationDetailApiResponse = z.infer<typeof investigationDetailResponseSchema>
+export type LlmStatusApiResponse = z.infer<typeof llmStatusSchema>
+export type LlmProbeApiResponse = z.infer<typeof llmProbeResultSchema>
+export type SandboxCapabilityApiResponse = z.infer<typeof sandboxCapabilitySchema>
+export type RuleIRVersionApiResponse = z.infer<typeof ruleIRVersionSchema>
+export type RuleSandboxRunApiResponse = z.infer<typeof ruleSandboxRunSchema>
+export type RuleDeploymentApiResponse = z.infer<typeof ruleDeploymentSchema>
+export type RuleDeploymentsApiResponse = z.infer<typeof ruleDeploymentsResponseSchema>
+export type SensorGroupApiResponse = z.infer<typeof sensorGroupSchema>

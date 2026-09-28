@@ -461,8 +461,190 @@ export interface SensorRecord {
   rejectedEvents: number
   ingestSource: string
   lastError: string | null
+  // Online ingestion-agent telemetry reported by recent heartbeats. Optional so
+  // older/mock registry payloads (which predate the backend extension) stay valid.
+  agentVersion?: string | null
+  lastHeartbeatAt?: string | null
+  clockSkewSeconds?: number | null
+  spoolDepth?: number
+  droppedEvents?: number
+  expectedIntervalSeconds?: number
+  capabilities?: string[]
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * A single sensor telemetry metric. `measured: false` is an explicit "not
+ * measured" signal (no data in the window) and MUST NOT be rendered as zero.
+ */
+export interface SensorMetric {
+  value: number | null
+  measured: boolean
+  unit: string
+  note: string | null
+}
+
+export interface SensorDataQuality {
+  sensorId: string
+  state: SensorState
+  healthReason: string
+  windowSeconds: number
+  batches: number
+  eventsAccepted: number
+  eventsRejected: number
+  eventsDuplicate: number
+  rejectRate: SensorMetric
+  duplicateRate: SensorMetric
+  ingestLatencyP50Ms: SensorMetric
+  ingestLatencyP95Ms: SensorMetric
+  clockSkewSeconds: SensorMetric
+  gapCount: SensorMetric
+  estimatedMissingSeconds: SensorMetric
+  spoolDepth: number
+  droppedEvents: number
+  expectedIntervalSeconds: number
+  lastBatchAt: string | null
+  lastEventAt: string | null
+  lastHeartbeatAt: string | null
+}
+
+export interface SensorHealthResponse {
+  items: SensorDataQuality[]
+}
+
+export type IngestionBatchStatus = 'accepted' | 'partial' | 'rejected'
+
+export interface IngestionBatch {
+  id: string
+  sensorId: string
+  batchId: string
+  receivedAt: string
+  contentSha256: string
+  encoding: string
+  payloadBytes: number
+  eventCount: number
+  acceptedCount: number
+  duplicateCount: number
+  rejectedCount: number
+  createdFlows: number
+  createdAlerts: number
+  firstEventAt: string | null
+  lastEventAt: string | null
+  clockSkewSeconds: number | null
+  status: IngestionBatchStatus
+}
+
+export interface IngestionBatchesResponse {
+  items: IngestionBatch[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export type DetectionMode = 'disabled' | 'shadow' | 'enabled'
+export type DetectionChannel = 'suricata' | 'baseline' | 'autoencoder'
+export type SignalDecision = 'alert' | 'benign' | 'abstain'
+export type AssessmentDecision = 'malicious' | 'suspicious' | 'benign' | 'abstain'
+
+export interface DetectionChannelStatus {
+  available: boolean
+  modelId: string | null
+  version: string | null
+  contractMatches: boolean
+  reason: string | null
+}
+
+export interface DetectionStatus {
+  mode: DetectionMode
+  featureVersion: string
+  channels: Record<string, DetectionChannelStatus>
+  alerting: boolean
+  notes: string[]
+}
+
+/**
+ * Channel-specific scoring detail carried inside every detection signal.
+ * Baseline emits prediction/topK, autoencoder emits reconstructionError and
+ * friends; missingFields/windowSeconds/contextFeatures are always present.
+ */
+export interface DetectionSignalDetail {
+  missingFields: string[]
+  windowSeconds: number
+  contextFeatures: Record<string, number>
+  prediction?: string
+  topK?: Array<{ label: string; probability: number }>
+  reconstructionError?: number
+  errorThreshold?: number
+  exceedsThreshold?: boolean
+  deviatingFeatures?: Array<{ field: string; observed: number; baseline: number; deviation: number }>
+  calibration?: string
+  featureContract?: string
+}
+
+export interface DetectionSignal {
+  id: string
+  createdAt: string
+  flowId: string | null
+  alertId: string | null
+  sensorId: string
+  channel: DetectionChannel
+  channelVersion: string
+  modelId: string | null
+  rawScore: number
+  calibratedScore: number
+  threshold: number
+  decision: SignalDecision
+  uncertainty: number
+  featureVersion: string
+  featureSource: string
+  imputedFeatures: string[]
+  latencyMs: number
+  degraded: boolean
+  degradedReason: string | null
+  detail: DetectionSignalDetail
+}
+
+export interface RiskAssessmentInput {
+  signalId: string | null
+  channel: DetectionChannel
+  channelVersion: string
+  modelId: string | null
+  rawScore: number
+  calibratedScore: number
+  decision: SignalDecision
+  imputedFeatures: string[]
+  degradedReason: string | null
+}
+
+export interface RiskAssessment {
+  id: string
+  createdAt: string
+  flowId: string | null
+  alertId: string | null
+  sensorId: string
+  signalIds: string[]
+  inputs: RiskAssessmentInput[]
+  weights: Record<string, number>
+  finalScore: number
+  uncertainty: number
+  decision: AssessmentDecision
+  explanation: string
+  degradedReasons: string[]
+  mode: string
+}
+
+export interface DetectionSignalsResponse {
+  items: DetectionSignal[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface DetectionFlowDetail {
+  flowId: string
+  signals: DetectionSignal[]
+  assessments: RiskAssessment[]
 }
 
 export interface SensorSummary {
@@ -490,4 +672,355 @@ export interface OverviewMetrics {
   candidateRules: number
   deployedRules: number
   sensors: SensorSummary
+}
+
+export type CaseSeverity = 'critical' | 'high' | 'medium' | 'low'
+export type CaseStatus = 'open' | 'investigating' | 'contained' | 'closed' | 'archived'
+
+export interface CaseRecord {
+  id: string
+  title: string
+  summary: string
+  severity: CaseSeverity
+  status: CaseStatus
+  assignee: string | null
+  createdBy: string
+  alertCount: number
+  highestRiskScore: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CaseTimelineEventItem {
+  id: string
+  eventType: string
+  actor: string
+  note: string | null
+  createdAt: string
+}
+
+export interface CaseDetailData {
+  case: CaseRecord
+  alerts: Alert[]
+  timeline: CaseTimelineEventItem[]
+}
+
+export interface CaseSuggestionItem {
+  caseId: string
+  caseTitle: string
+  caseStatus: CaseStatus
+  sharedIps: string[]
+  matchingAlertIds: string[]
+  updatedAt: string
+}
+
+export interface EntityRecord {
+  id: string
+  entityType: string
+  value: string
+  firstSeenAt: string
+  lastSeenAt: string
+  eventCount: number
+  sensorIds: string[]
+  createdAt: string
+}
+
+export interface EntityRelationItem {
+  id: string
+  relationType: string
+  otherEntityId: string
+  otherEntityValue: string
+  eventCount: number
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+export interface EntityDetailData extends EntityRecord {
+  relations: EntityRelationItem[]
+}
+
+export interface EvidenceRecord {
+  id: string
+  sourceType: string
+  sensorId: string
+  eventType: string
+  externalId: string
+  observedAt: string
+  receivedAt: string
+  contentSha256: string
+  integrity: string
+  dataMissing: string
+  parserVersion: string
+  redacted: boolean
+  sourceRefType: string | null
+  sourceRefId: string | null
+  artifactSizeBytes: number
+  createdAt: string
+}
+
+export interface EvidenceDetailData extends EvidenceRecord {
+  fields: Record<string, unknown>
+  artifactText: string | null
+}
+
+// ---- Phase 4: AI investigations -------------------------------------------
+// Mirrors the FastAPI contracts for investigation runs, per-claim evidence
+// citations, tool executions and analyst feedback. Every value rendered in the
+// console comes from these reads; nothing is fabricated client-side.
+
+export type InvestigationRunState =
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'insufficient_evidence'
+  | 'degraded'
+  | 'failed'
+  | 'cancelled'
+
+export type InvestigationClaimType = 'observation' | 'inference' | 'recommendation' | 'rejected'
+export type FeedbackVerdict = 'agree' | 'disagree' | 'unsure'
+
+export interface InvestigationRunRecord {
+  id: string
+  alertId: string
+  caseId: string | null
+  requestedBy: string
+  state: InvestigationRunState
+  mode: string
+  provider: string
+  modelId: string
+  promptTemplateVersion: string
+  toolRegistryVersion: string
+  knowledgeVersion: string
+  maxToolCalls: number
+  budgetUsd: number | null
+  inputEvidenceIds: string[]
+  /** Hybrid-RAG retrieval snapshot as reported by the backend (opaque object). */
+  retrieval: Record<string, unknown>
+  summary: string | null
+  uncertainty: number | null
+  promptTokens: number
+  completionTokens: number
+  costEstimateUsd: number | null
+  latencyMs: number | null
+  attempts: number
+  degradedReasons: string[]
+  errorMessage: string | null
+  startedAt: string | null
+  completedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface InvestigationClaimRead {
+  id: string
+  runId: string
+  claimIndex: number
+  claimType: InvestigationClaimType
+  statement: string
+  evidenceIds: string[]
+  confidence: number
+  uncertainty: number
+  mitreTechniques: string[]
+  verified: boolean
+  rejectionReason: string | null
+  createdAt: string
+}
+
+export type ToolExecutionState = 'completed' | 'rejected' | 'failed'
+
+export interface ToolExecutionRead {
+  id: string
+  runId: string
+  toolName: string
+  toolVersion: string
+  arguments: Record<string, unknown>
+  resultSummary: string | null
+  state: ToolExecutionState
+  durationMs: number
+  error: string | null
+  createdAt: string
+}
+
+export interface FeedbackRead {
+  id: string
+  objectType: string
+  objectId: string
+  verdict: FeedbackVerdict
+  label: string | null
+  comment: string | null
+  actor: string
+  createdAt: string
+}
+
+export interface InvestigationsListResponse {
+  items: InvestigationRunRecord[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface InvestigationDetailResponse {
+  run: InvestigationRunRecord
+  claims: InvestigationClaimRead[]
+  tools: ToolExecutionRead[]
+  feedback: FeedbackRead[]
+}
+
+export interface InvestigationCreateRequest {
+  alertId: string
+  caseId?: string
+  maxToolCalls?: number
+  budgetUsd?: number
+}
+
+export interface FeedbackCreateRequest {
+  objectType: string
+  objectId: string
+  verdict: FeedbackVerdict
+  label?: string
+  comment?: string
+}
+
+// ---- Phase 4: LLM gateway --------------------------------------------------
+export type LlmCircuitState = 'open' | 'closed'
+
+export interface LlmStatusBudget {
+  day: string
+  spentUsd: number
+  dailyBudgetUsd: number
+  runBudgetUsd: number
+  remainingUsd: number
+}
+
+export interface LlmGatewayStatus {
+  provider: string
+  model: string
+  available: boolean
+  circuit: { state: LlmCircuitState; consecutiveFailures: number; resetInSeconds: number | null }
+  concurrencyLimit: number
+  timeoutSeconds: number
+  maxAttempts: number
+  budget: LlmStatusBudget
+  stats: Record<string, number>
+  pricingKnown: boolean
+}
+
+export interface LlmProbeResult {
+  available: boolean
+  models: string[]
+  configuredModelExists: boolean
+  error: string | null
+}
+
+// ---- Phase 5: rule governance ----------------------------------------------
+export interface SandboxCapability {
+  suricataAvailable: boolean
+  binary: string | null
+  executorVersion: string
+  note: string | null
+}
+
+export interface RuleIRVersionRecord {
+  id: string
+  ruleId: string
+  version: number
+  sid: number | null
+  rev: number | null
+  irDigest: string
+  irDocument: Record<string, unknown>
+  suricataText: string | null
+  state: string
+  createdBy: string
+  createdAt: string
+}
+
+export interface RuleSandboxMetrics {
+  normalFlows: number
+  maliciousFlows: number
+  truePositives: number
+  falsePositives: number
+  falseNegatives: number
+  recall: number
+  precision: number
+  f1: number
+  falsePositiveRate: number
+  falsePositivesPerMillion: number
+  replaySeconds: number
+  peakRssKb: number
+  /** Per-metric measurement flag: a metric with measured=false is 未测量, never 0. */
+  measured: Record<string, boolean>
+}
+
+export type RuleSandboxRunStatus =
+  | 'blocked'
+  | 'partial'
+  | 'validated'
+  | 'validation_failed'
+  | 'failed'
+
+export interface RuleSandboxCheck {
+  label: string
+  passed: boolean
+  note: string
+}
+
+export interface RuleSandboxRunRecord {
+  id: string
+  ruleId: string
+  ruleVersionId: string
+  status: RuleSandboxRunStatus
+  suricataAvailable: boolean
+  suricataVersion: string | null
+  syntaxPassed: boolean
+  executorVersion: string
+  normalPcap: string | null
+  maliciousPcap: string | null
+  metrics: RuleSandboxMetrics
+  checks: RuleSandboxCheck[]
+  passed: boolean
+  blockedReason: string | null
+  detail: string | null
+  createdAt: string
+}
+
+export type RuleDeploymentState = 'canary' | 'deployed' | 'rolled_back'
+
+export interface RuleDeploymentRecord {
+  id: string
+  ruleId: string
+  ruleVersionId: string
+  sensorGroupId: string
+  state: RuleDeploymentState
+  deployedBy: string
+  deployedAt: string
+  promotedAt: string | null
+  rolledBackAt: string | null
+  rollbackReason: string | null
+  monitoring: Record<string, unknown>
+  previousVersionId: string | null
+  createdAt: string
+}
+
+export interface RuleDeploymentsResponse {
+  items: RuleDeploymentRecord[]
+}
+
+export type SensorGroupStage = 'canary' | 'production'
+
+export interface SensorGroupRecord {
+  id: string
+  name: string
+  description: string | null
+  sensorIds: string[]
+  stage: SensorGroupStage
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RuleDeploymentCreateRequest {
+  ruleVersionId: string
+  sensorGroupId: string
+  state: 'canary' | 'deployed'
+  note?: string
 }

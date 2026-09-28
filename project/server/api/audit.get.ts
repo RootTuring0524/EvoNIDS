@@ -1,3 +1,4 @@
+import { caseIdSchema } from '../../shared/schemas/security'
 import { fetchBackend, usesMockApi } from '../utils/backend'
 
 const mockItems = [
@@ -36,9 +37,34 @@ const mockItems = [
   },
 ]
 
-export default defineEventHandler(async (event) => {
-  if (!usesMockApi(event)) {
-    return fetchBackend(event, '/audit', { query: getQuery(event) })
+/** Normalize and validate the optional caseId query parameter. */
+function resolveCaseId(raw: unknown): string | undefined {
+  if (raw === undefined) return undefined
+  const trimmed = typeof raw === 'string' ? raw.trim() : ''
+  if (!trimmed) return undefined
+  const normalized = trimmed.toUpperCase()
+  const parsed = caseIdSchema.safeParse(normalized)
+  if (!parsed.success) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: '案件编号格式无效：应为 CASE- 后跟 12 位大写十六进制字符',
+    })
   }
-  return { items: mockItems, total: mockItems.length, page: 1, pageSize: 50 }
+  return parsed.data
+}
+
+export default defineEventHandler(async (event) => {
+  const query = getQuery(event)
+  const caseId = resolveCaseId(query.caseId)
+  if (!usesMockApi(event)) {
+    // Forward validated filters only; zod rejects malformed case ids before
+    // they ever reach the backend so the page can explain the failure.
+    return fetchBackend(event, '/audit', {
+      query: { ...query, ...(caseId ? { caseId } : {}) },
+    })
+  }
+  // Mock mode has no case records: a case filter honestly matches nothing,
+  // while an absent filter keeps the previous mock behaviour.
+  const items = caseId ? mockItems.filter((item) => item.objectType === 'case' && item.objectId === caseId) : mockItems
+  return { items, total: items.length, page: 1, pageSize: 50 }
 })

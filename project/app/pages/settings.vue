@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { z } from 'zod'
-import { CheckCircle2, EyeOff, KeyRound, LockKeyhole, RefreshCw, ServerCog, ShieldCheck, TriangleAlert } from '~/utils/icons'
-import { integrationsStatusSchema, readinessResponseSchema } from '~~/shared/schemas/security'
+import { CheckCircle2, EyeOff, KeyRound, LockKeyhole, RefreshCw, ServerCog, ShieldCheck, Sparkles, TriangleAlert } from '~/utils/icons'
+import { integrationsStatusSchema, llmProbeResultSchema, llmStatusSchema, readinessResponseSchema } from '~~/shared/schemas/security'
 
 const connectionSchema = z.object({
   status: z.enum(['mock', 'ready', 'missing', 'unavailable', 'model_missing']),
@@ -12,8 +12,12 @@ const connectionSchema = z.object({
 const ui=useUiStore();const message=ref('');const messageTone=ref<'success'|'error'>('success');const testing=ref(false)
 const {data,status,error,refresh}=await useAsyncData('integration-settings',()=>validatedFetch('/settings/integrations',integrationsStatusSchema))
 const {data:readiness,error:readinessError,refresh:refreshReadiness}=await useAsyncData('deployment-readiness',()=>validatedFetch('/readiness',readinessResponseSchema))
+const {data:llmStatus,error:llmStatusError,refresh:refreshLlm}=await useAsyncData('llm-gateway-status',()=>validatedFetch('/llm/status',llmStatusSchema))
+const probing=ref(false)
+const probeResult=ref<z.infer<typeof llmProbeResultSchema>|null>(null)
+const probeError=ref('')
 function notify(text:string,tone:'success'|'error'='success'){messageTone.value=tone;message.value=text;setTimeout(()=>message.value='',3200)}
-async function reloadConfig(){await Promise.all([refresh(),refreshReadiness()]);notify('服务端配置和上线就绪状态已刷新')}
+async function reloadConfig(){await Promise.all([refresh(),refreshReadiness(),refreshLlm()]);notify('服务端配置和上线就绪状态已刷新')}
 async function test(){
   testing.value=true
   try {
@@ -23,6 +27,20 @@ async function test(){
     notify('服务端连接检查失败，请查看安全审计日志。','error')
   } finally { testing.value=false }
 }
+async function probeModel(){
+  if (probing.value) return
+  probing.value=true
+  probeError.value=''
+  probeResult.value=null
+  try {
+    probeResult.value=await validatedFetch('/llm/probe',llmProbeResultSchema,{method:'POST'})
+  } catch (caught) {
+    const shape=(typeof caught==='object'&&caught!==null?caught:{}) as {data?:{statusMessage?:string;detail?:string|null;message?:string};message?:string}
+    probeError.value=shape.data?.detail||shape.data?.statusMessage||shape.data?.message||shape.message||'模型探测失败，请稍后重试。'
+  } finally { probing.value=false }
+}
+function isMockNow(){return useRuntimeConfig().public.useMockApi}
+const llmStatsRows = computed(() => Object.entries(llmStatus.value?.stats ?? {}).slice(0, 24))
 function jumpTo(id:string){document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'})}
 </script>
 <template>
@@ -32,7 +50,7 @@ function jumpTo(id:string){document.getElementById(id)?.scrollIntoView({behavior
     </PageHeader>
     <div v-if="message" :class="['success-message',messageTone]" role="status"><CheckCircle2 :size="14"/>{{message}}</div>
     <section class="settings-layout">
-      <aside class="settings-nav surface-panel" aria-label="设置目录"><button @click="jumpTo('agent-integration')">Agent 集成</button><button @click="jumpTo('deployment-readiness')">上线就绪检查</button><button @click="jumpTo('security-boundary')">调用安全边界</button><button @click="jumpTo('appearance-settings')">界面主题</button></aside>
+      <aside class="settings-nav surface-panel" aria-label="设置目录"><button @click="jumpTo('agent-integration')">Agent 集成</button><button @click="jumpTo('llm-gateway')">LLM 网关</button><button @click="jumpTo('deployment-readiness')">上线就绪检查</button><button @click="jumpTo('security-boundary')">调用安全边界</button><button @click="jumpTo('appearance-settings')">界面主题</button></aside>
       <div class="settings-main">
         <LoadingState v-if="status==='pending'" :rows="6"/><ErrorState v-else-if="error||readinessError" @retry="reloadConfig"/>
         <template v-else-if="data">
@@ -41,6 +59,36 @@ function jumpTo(id:string){document.getElementById(id)?.scrollIntoView({behavior
             <div v-if="!data.useMockApi&&!data.deepseek.configured" class="mode-notice"><TriangleAlert :size="14"/><div><b>DeepSeek 尚未配置</b><p>请在项目根目录 <code>.env</code> 中设置 <code>NUXT_DEEPSEEK_API_BASE</code>、<code>NUXT_DEEPSEEK_API_KEY</code>、<code>NUXT_DEEPSEEK_MODEL</code> 三项；配置后需重启 Nuxt 服务器才会生效。</p></div></div>
             <div class="config-fields"><label><span>API Base</span><div><ServerCog :size="13"/><input :value="data.apiBaseState==='configured'?(data.deepseek.baseUrlHost||'已配置'):data.apiBaseState==='invalid'?'地址格式无效':'未配置'" readonly></div><small><code>NUXT_DEEPSEEK_API_BASE</code> · 此处仅显示域名，原值不返回浏览器</small></label><label><span>API Model ID</span><div><LockKeyhole :size="13"/><input :value="data.deepseek.model||'未配置'" readonly></div><small><code>NUXT_DEEPSEEK_MODEL</code> · 真实模型 ID 由服务端返回</small></label><label><span>API Key</span><div><KeyRound :size="13"/><input :value="data.apiKeyState==='configured'?'••••••••••••••••••••••••':'未配置'" readonly><EyeOff v-if="data.apiKeyState==='configured'" :size="13"/></div><small><code>NUXT_DEEPSEEK_API_KEY</code> · {{data.apiKeyState==='configured'?'已配置':'未配置'}} · 永不返回浏览器</small></label><label><span>前端显示名称</span><div><ShieldCheck :size="13"/><input :value="data.deepseek.displayModel" readonly></div><small>由模型 ID 推导；未配置模型时显示默认名称</small></label></div>
             <div class="integration-actions"><button :disabled="testing" @click="test"><RefreshCw :size="13" :class="{spin:testing}"/>{{testing?'检测中…':'测试连接'}}</button><span><ShieldCheck :size="12"/>真实探测 · 8 秒超时 · 认证信息脱敏</span></div>
+          </section>
+          <section id="llm-gateway" class="llm-gateway surface-panel">
+            <div class="gateway-head"><span><Sparkles :size="18"/></span><div><p>模型服务运行状态与预算</p><h2>LLM 网关</h2><small>状态来自后端 /llm/status · 管理令牌仅存于服务端</small></div><StatusIndicator :status="llmStatus&&llmStatus.available?'healthy':'degraded'" :label="llmStatus&&llmStatus.available?'可用':(llmStatus&&(llmStatus.provider||llmStatus.model))?'降级':'未配置供应商'"/></div>
+            <div v-if="isMockNow()" class="gateway-mock-note"><TriangleAlert :size="14"/><div><b>演示模式</b><p>LLM 网关状态与探测仅对真实后端有意义；此处数值均为空值占位，不表示真实运行状态。</p></div></div>
+            <div v-if="llmStatusError&&!llmStatus" class="gateway-inline-error" role="alert"><TriangleAlert :size="14"/><span>LLM 网关状态加载失败</span><button @click="() => refreshLlm()">重试</button></div>
+            <template v-if="llmStatus">
+              <div v-if="!(llmStatus.provider||llmStatus.model)" class="unconfigured-note"><TriangleAlert :size="14"/><div><b>未配置供应商</b><p>后端未报告可用的 LLM 供应商/模型；请在服务端配置模型环境变量后重启。</p></div></div>
+              <dl class="gateway-facts">
+                <div><dt>供应商</dt><dd class="mono">{{llmStatus.provider||'—'}}</dd></div>
+                <div><dt>模型</dt><dd class="mono">{{llmStatus.model||'—'}}</dd></div>
+                <div><dt>熔断器</dt><dd><span :class="['circuit-chip',llmStatus.circuit.state==='open'?'open':'closed']">{{llmStatus.circuit.state==='open'?'已熔断（开启）':'正常（关闭）'}}</span><small v-if="llmStatus.circuit.consecutiveFailures||llmStatus.circuit.state==='open'">连续失败 {{llmStatus.circuit.consecutiveFailures}} 次<template v-if="llmStatus.circuit.resetInSeconds!==null"> · {{llmStatus.circuit.resetInSeconds}}s 后重置</template></small></dd></div>
+                <div><dt>并发上限</dt><dd class="mono">{{llmStatus.concurrencyLimit}}</dd></div>
+                <div><dt>超时 / 最大尝试</dt><dd class="mono">{{llmStatus.timeoutSeconds}}s / {{llmStatus.maxAttempts}}</dd></div>
+                <div><dt>计价已知</dt><dd>{{llmStatus.pricingKnown?'是':'否'}}</dd></div>
+                <div class="budget-cell wide"><dt>预算（{{llmStatus.budget.day||'—'}}）</dt><dd><span class="mono">已花 ${{llmStatus.budget.spentUsd.toFixed(4)}}</span><i>/</i><span class="mono">日上限 ${{llmStatus.budget.dailyBudgetUsd.toFixed(4)}}</span><i>/</i><span class="mono">单次上限 ${{llmStatus.budget.runBudgetUsd.toFixed(4)}}</span></dd></div>
+                <div class="budget-cell wide remaining"><dt>剩余预算</dt><dd class="mono">${{llmStatus.budget.remainingUsd.toFixed(4)}}</dd></div>
+              </dl>
+              <div v-if="llmStatsRows.length" class="stats-panel"><div class="mini-title">计数统计</div><div class="stats-chips"><span v-for="[key,count] in llmStatsRows" :key="key"><b class="mono">{{key}}</b><em class="mono">{{count}}</em></span></div></div>
+              <div class="probe-zone">
+                <button :disabled="probing" @click="probeModel"><RefreshCw :size="13" :class="{spin:probing}"/>{{probing?'探测中…':'探测模型'}}</button>
+                <div v-if="probeError" class="probe-error" role="alert"><TriangleAlert :size="13"/>{{probeError}}</div>
+                <div v-else-if="probeResult" class="probe-result" role="status">
+                  <CheckCircle2 v-if="probeResult.available" :size="13"/><TriangleAlert v-else :size="13"/>
+                  <span>{{probeResult.available?'上游响应正常':'上游不可用'}}<template v-if="probeResult.error"> · {{probeResult.error}}</template></span>
+                  <span v-if="probeResult.models.length" class="mono models">可用模型：{{probeResult.models.join('、')}}</span>
+                  <span :class="['exists-chip',probeResult.configuredModelExists?'yes':'no']">配置模型{{probeResult.configuredModelExists?'存在':'不存在'}}</span>
+                </div>
+              </div>
+            </template>
+            <div v-else-if="!llmStatusError" class="gateway-loading">加载网关状态…</div>
           </section>
           <section v-if="readiness" id="deployment-readiness" class="readiness-panel surface-panel"><div class="panel-head readiness-head"><div><h2>上线就绪检查</h2><p>只报告可验证状态，不把开发模式判定为生产可用</p></div><span :class="readiness.status"><ShieldCheck v-if="readiness.status==='ready'" :size="13"/><TriangleAlert v-else :size="13"/>{{readiness.status==='ready'?'已就绪':`${readiness.blockers} 个阻断 · ${readiness.warnings} 个提醒`}}</span></div><div class="readiness-list"><div v-for="check in readiness.checks" :key="check.id" :class="check.status"><span><CheckCircle2 v-if="check.status==='pass'" :size="14"/><TriangleAlert v-else :size="14"/></span><div><b>{{check.label}}</b><p>{{check.detail}}</p></div><em>{{check.status==='pass'?'通过':check.status==='block'?'阻断':'提醒'}}</em></div></div><footer>环境 <code>{{readiness.environment}}</code><span>检查时间 {{new Date(readiness.checkedAt).toLocaleString('zh-CN')}}</span></footer></section>
           <section id="security-boundary" class="security-boundary surface-panel"><div class="panel-head"><div><h2>调用安全边界</h2><p>所有 Agent 请求必须遵守</p></div></div><div class="boundary-flow"><div><b>浏览器</b><span>结构化画像 + 告警 ID</span></div><i>→</i><div><b>Nuxt Server API</b><span>Zod 校验 · 服务端画像核验 · RAG 白名单</span></div><i>→</i><div><b>{{data.displayName}}</b><span>私有凭据 · 结构化响应</span></div></div><ul><li><CheckCircle2 :size="12"/>API Key、API Base 与真实 Model ID 仅存在于服务端 Runtime Config</li><li><CheckCircle2 :size="12"/>Agent 运行固定经过 <code>/api/agent/analyze</code></li><li><CheckCircle2 :size="12"/>客户端画像必须与服务端告警上下文完全一致</li><li><CheckCircle2 :size="12"/>错误响应不包含上游认证头或完整响应体</li><li><CheckCircle2 :size="12"/>仅无 Prompt Injection 风险的授权证据进入上下文</li><li><CheckCircle2 :size="12"/>Agent 无权确认或部署规则</li></ul></section>
@@ -57,4 +105,14 @@ function jumpTo(id:string){document.getElementById(id)?.scrollIntoView({behavior
 <style scoped>
 .readiness-panel{overflow:hidden;scroll-margin-top:64px}.readiness-head{display:flex;justify-content:space-between;align-items:center}.readiness-head>span{display:flex;align-items:center;gap:5px;padding:3px 7px;border-radius:5px;background:color-mix(in srgb,var(--status-warning) 9%,transparent);color:var(--status-warning);font-size:12px}.readiness-head>span.ready{background:color-mix(in srgb,var(--status-success) 9%,transparent);color:var(--status-success)}.readiness-list{display:grid;grid-template-columns:1fr 1fr}.readiness-list>div{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:start;min-height:58px;padding:9px 10px;border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle)}.readiness-list>div:nth-child(even){border-right:0}.readiness-list>div>span{color:var(--status-success)}.readiness-list>div.warn>span{color:var(--status-warning)}.readiness-list>div.block>span{color:var(--status-error)}.readiness-list b,.readiness-list p{margin:0}.readiness-list b{font-size:12px}.readiness-list p{margin-top:2px;color:var(--text-tertiary);font-size:12px}.readiness-list em{color:var(--status-success);font-size:12px;font-style:normal}.readiness-list .warn em{color:var(--status-warning)}.readiness-list .block em{color:var(--status-error)}.readiness-panel footer{display:flex;justify-content:space-between;padding:8px 10px;background:var(--surface-2);color:var(--text-tertiary);font-size:12px}.readiness-panel footer code{color:var(--text-secondary)}
 @media(max-width:700px){.readiness-list{grid-template-columns:1fr}.readiness-list>div{border-right:0}.readiness-head{align-items:flex-start;gap:8px}.readiness-panel footer{display:grid;gap:3px}}
+</style>
+<style scoped>
+.llm-gateway{overflow:hidden;scroll-margin-top:64px}.gateway-head{display:flex;align-items:center;gap:9px;min-height:64px;padding:9px 12px;border-bottom:1px solid var(--border-subtle)}.gateway-head>span{display:grid;width:34px;height:34px;place-items:center;border-radius:8px;background:var(--accent-muted);color:var(--accent-strong)}.gateway-head>div{flex:1}.gateway-head p,.gateway-head h2,.gateway-head small{display:block;margin:0}.gateway-head p{color:var(--text-tertiary);font-size:12px}.gateway-head h2{font-size:13px}.gateway-head small{margin-top:2px;color:var(--text-tertiary);font-size:12px}
+.gateway-mock-note,.unconfigured-note{display:flex;gap:9px;margin:11px 12px 0;padding:9px 11px;border:1px dashed color-mix(in srgb,var(--status-warning) 45%,var(--border-default));border-radius:8px;background:color-mix(in srgb,var(--status-warning) 7%,transparent);color:var(--status-warning);font-size:12px}.gateway-mock-note>div,.unconfigured-note>div{flex:1}.gateway-mock-note b,.unconfigured-note b{display:block}.gateway-mock-note p,.unconfigured-note p{margin:3px 0 0;color:var(--text-tertiary);line-height:1.55}
+.gateway-inline-error{display:flex;gap:8px;align-items:center;margin:11px 12px 0;padding:8px 10px;border-left:2px solid var(--status-error);background:color-mix(in srgb,var(--status-error) 8%,transparent);color:var(--status-error);font-size:12px}.gateway-inline-error span{flex:1}.gateway-inline-error button{height:26px;padding:0 8px;border:1px solid var(--border-default);border-radius:6px;background:var(--surface-2);color:var(--text-secondary);cursor:pointer}
+.gateway-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:11px 12px 0;border:1px solid var(--border-subtle)}.gateway-facts>div{min-width:0;padding:8px 10px;border-right:1px solid var(--border-subtle);border-bottom:1px solid var(--border-subtle)}.gateway-facts .wide{grid-column:1/-1}.gateway-facts dt{color:var(--text-tertiary);font-size:12px}.gateway-facts dd{margin:3px 0 0;color:var(--text-secondary);font-size:13px}.gateway-facts .remaining{background:color-mix(in srgb,var(--accent) 6%,var(--surface-1))}.gateway-facts .remaining dd{color:var(--accent-strong);font-size:15px;font-weight:650}.circuit-chip{display:inline-block;padding:1px 7px;border-radius:4px;font-size:12px}.circuit-chip.closed{background:color-mix(in srgb,var(--status-success) 12%,transparent);color:var(--status-success)}.circuit-chip.open{background:color-mix(in srgb,var(--status-error) 12%,transparent);color:var(--status-error)}.gateway-facts dd small{display:block;margin-top:3px;color:var(--text-tertiary);font-size:11px}.budget-cell dd{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.budget-cell dd i{color:var(--border-strong);font-style:normal}
+.stats-panel{margin:11px 12px 0;padding:8px 10px;border:1px solid var(--border-subtle);border-radius:8px}.mini-title{margin-bottom:6px;color:var(--text-tertiary);font-size:12px}.stats-chips{display:flex;gap:5px;flex-wrap:wrap}.stats-chips>span{display:inline-flex;gap:7px;align-items:center;padding:2px 7px;border-radius:5px;background:var(--surface-2);font-size:12px}.stats-chips b{color:var(--text-secondary);font-weight:600}.stats-chips em{color:var(--text-tertiary);font-style:normal}
+.probe-zone{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px 12px}.probe-zone>button{display:flex;gap:5px;align-items:center;height:31px;padding:0 10px;border:1px solid var(--border-default);border-radius:7px;background:var(--surface-2);color:var(--text-secondary);font-size:12px;cursor:pointer}.probe-zone>button:disabled{opacity:.55}.probe-error,.probe-result{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}.probe-error{color:var(--status-error)}.probe-result{color:var(--text-secondary)}.probe-result .models{color:var(--text-tertiary);font-size:11px}.exists-chip{padding:1px 6px;border-radius:4px;font-size:11px}.exists-chip.yes{background:color-mix(in srgb,var(--status-success) 12%,transparent);color:var(--status-success)}.exists-chip.no{background:color-mix(in srgb,var(--status-error) 12%,transparent);color:var(--status-error)}.gateway-loading{padding:16px;color:var(--text-tertiary);font-size:13px}
+.spin{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:800px){.gateway-facts{grid-template-columns:1fr 1fr}.gateway-facts .wide{grid-column:1/-1}}@media(max-width:560px){.gateway-facts{grid-template-columns:1fr}}
 </style>

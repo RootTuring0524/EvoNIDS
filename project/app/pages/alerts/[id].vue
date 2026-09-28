@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ArrowLeft, CheckCircle2, FileClock, Network, Play, ShieldBan, UserPlus, X } from '~/utils/icons'
-import { agentAnalysisResponseSchema, alertDetailSchema, ruleDetailSchema } from '~~/shared/schemas/security'
+import { agentAnalysisResponseSchema, alertDetailSchema, entitiesResponseSchema, ruleDetailSchema } from '~~/shared/schemas/security'
 import type { AgentRuleProposal } from '~~/shared/schemas/security'
-import type { AgentAnalysis } from '~~/shared/types/security'
+import type { AgentAnalysis, EntityRecord } from '~~/shared/types/security'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const isMock = useRuntimeConfig().public.useMockApi
-const activeTab = ref<'detection' | 'profile' | 'agent' | 'evidence'>('detection')
+const activeTab = ref<'detection' | 'online-chain' | 'profile' | 'agent' | 'investigation' | 'evidence'>('detection')
 const successMessage = ref('')
 const alertAction = ref<'assign' | 'contain' | null>(null)
 const actionError = ref('')
@@ -17,6 +17,43 @@ const ruleSaving = ref(false)
 const agentStatus = ref<'idle' | 'pending' | 'success' | 'error'>('idle')
 const agentError = ref('')
 const { data: detail, status, error, refresh } = await useAsyncData(() => `alert-${id.value}`, () => validatedFetch(`/alerts/${id.value}`, alertDetailSchema), { watch: [id] })
+
+// 源/目的 IP 深链：仅当该 IP 在实体图谱中真实存在（通过现有 entities BFF 解析，
+// 不新增端点）时才渲染为 /entities/<id> 链接，否则保持纯文本。
+const entityState = ref<'idle' | 'resolving' | 'resolved'>('idle')
+const srcEntity = ref<EntityRecord | null>(null)
+const dstEntity = ref<EntityRecord | null>(null)
+
+async function resolveIpEntities() {
+  const profile = detail.value?.profile
+  if (!profile) return
+  srcEntity.value = null
+  dstEntity.value = null
+  if (isMock) { entityState.value = 'resolved'; return }
+  entityState.value = 'resolving'
+  const lookup = async (ip: string): Promise<EntityRecord | null> => {
+    if (!ip) return null
+    try {
+      const response = await validatedFetch('/entities', entitiesResponseSchema, {
+        query: { entityType: 'ip', search: ip, page: 1, pageSize: 25 },
+      })
+      return response.items.find((item) => item.entityType === 'ip' && item.value === ip) ?? null
+    } catch {
+      // 实体解析失败时退回纯文本，不影响告警详情主体。
+      return null
+    }
+  }
+  const [src, dst] = await Promise.all([lookup(profile.src_ip), lookup(profile.dst_ip)])
+  srcEntity.value = src
+  dstEntity.value = dst
+  entityState.value = 'resolved'
+}
+watch(() => [detail.value?.profile.src_ip, detail.value?.profile.dst_ip], () => {
+  // SSR 阶段不请求实体 BFF；hydrate 后由 onMounted 触发，切换告警时由本 watch 触发。
+  if (import.meta.client) void resolveIpEntities()
+})
+onMounted(() => { void resolveIpEntities() })
+
 const hasCompletedAgent = computed(() =>
   detail.value?.agent.state === 'completed' && !detail.value.agent.runId.startsWith('AGENT-NOT-RUN-'),
 )
@@ -27,7 +64,7 @@ const trustedEvidenceCount = computed(() =>
 )
 const statusLabels: Record<string, string> = { new: '待研判', investigating: '调查中', contained: '已遏制', closed: '已关闭' }
 const tabs = [
-  { id: 'detection', label: '检测证据' }, { id: 'profile', label: '异常画像' }, { id: 'agent', label: 'Agent 研判' }, { id: 'evidence', label: 'RAG 证据' },
+  { id: 'detection', label: '检测证据' }, { id: 'online-chain', label: '在线证据链' }, { id: 'profile', label: '异常画像' }, { id: 'agent', label: 'Agent 研判' }, { id: 'investigation', label: 'AI 调查' }, { id: 'evidence', label: 'RAG 证据' },
 ] as const
 function act(message: string) { successMessage.value = message; setTimeout(() => successMessage.value = '', 2600) }
 const agentDuration = computed(() => agentAnalysis.value?.steps.reduce((total, step) => total + step.durationMs, 0) ?? 0)
@@ -171,8 +208,10 @@ watch(id, () => {
       </header>
 
       <section class="entity-strip">
-        <div><span>源实体</span><b class="mono">{{ detail.profile.src_ip }}:{{ detail.profile.src_port }}</b></div><i>→</i><div><span>目的实体</span><b class="mono">{{ detail.profile.dst_ip }}:{{ detail.profile.dst_port }}</b></div><div><span>协议 / 服务</span><b>{{ detail.profile.protocol }} · {{ detail.profile.service }}</b></div><div><span>Flow</span><b class="mono">{{ detail.profile.flow_id }}</b></div><div><span>负责人</span><b>{{ detail.alert.owner || '未分派' }}</b></div>
+        <div><span>源实体</span><b class="mono"><NuxtLink v-if="srcEntity" :to="`/entities/${srcEntity.id}`" class="entity-link" :aria-label="`查看实体 ${detail.profile.src_ip} 的图谱`" :title="`实体图谱：${srcEntity.value}（最近 ${srcEntity.lastSeenAt}）`">{{ detail.profile.src_ip }}:{{ detail.profile.src_port }}</NuxtLink><template v-else>{{ detail.profile.src_ip }}:{{ detail.profile.src_port }}</template></b></div><i>→</i><div><span>目的实体</span><b class="mono"><NuxtLink v-if="dstEntity" :to="`/entities/${dstEntity.id}`" class="entity-link" :aria-label="`查看实体 ${detail.profile.dst_ip} 的图谱`" :title="`实体图谱：${dstEntity.value}（最近 ${dstEntity.lastSeenAt}）`">{{ detail.profile.dst_ip }}:{{ detail.profile.dst_port }}</NuxtLink><template v-else>{{ detail.profile.dst_ip }}:{{ detail.profile.dst_port }}</template></b></div><div><span>协议 / 服务</span><b>{{ detail.profile.protocol }} · {{ detail.profile.service }}</b></div><div><span>Flow</span><b class="mono">{{ detail.profile.flow_id }}</b></div><div><span>负责人</span><b>{{ detail.alert.owner || '未分派' }}</b></div>
       </section>
+
+      <AlertCasePanel v-if="!isMock" :alert-id="detail.alert.id" :alert-title="detail.alert.title" />
 
       <nav class="detail-tabs" aria-label="告警详情视图">
         <button v-for="tab in tabs" :key="tab.id" :class="{ active: activeTab === tab.id }" @click="selectTab(tab.id)">{{ tab.label }}<span v-if="tab.id === 'evidence'">{{ detail.rag.filter((item) => item.usedByAgent).length }}</span></button>
@@ -185,6 +224,7 @@ watch(id, () => {
           <section class="evidence-summary surface-panel"><div class="panel-title"><h2>原始检测证据</h2><span>由传感器写入，不经 Agent 改写</span></div><ul><li v-for="item in detail.alert.evidence" :key="item"><CheckCircle2 :size="13" />{{ item }}</li></ul><button @click="activeTab = 'profile'"><Network :size="13" />查看完整 Flow 画像</button></section>
         </div>
       </div>
+      <div v-else-if="activeTab === 'online-chain'" class="tab-content"><DetectionChainPanel :flow-id="detail.profile.flow_id || ''" /></div>
       <div v-else-if="activeTab === 'profile'" class="tab-content"><AnomalyProfileView :profile="detail.profile" /></div>
       <div v-else-if="activeTab === 'agent'" class="tab-content agent-layout">
         <section class="agent-work surface-panel">
@@ -202,6 +242,9 @@ watch(id, () => {
           <p>DeepSeek V4 Pro 只读取结构化画像与实际授权的 {{ trustedEvidenceCount }} 条证据，不直接处理原始流量。</p>
         </aside>
       </div>
+      <div v-else-if="activeTab === 'investigation'" class="tab-content">
+        <InvestigationPanel :alert-id="detail.alert.id" />
+      </div>
       <div v-else class="tab-content"><RagEvidenceList :items="detail.rag" :query="detail.ragQuery" :top-k="detail.rag.filter((item) => item.allowed).length" /></div>
     </template>
   </div>
@@ -212,7 +255,7 @@ watch(id, () => {
 .error-toast { border-color: color-mix(in srgb, var(--status-error) 38%, var(--border-default)); color: var(--status-error); }
 .detail-header { position: relative; margin-bottom: 12px; }.title-row { display: flex; align-items: center; gap: 9px; }.title-row h1 { margin: 0; font-size: 21px; font-weight: 650; }.detail-header > p { display: flex; gap: 7px; margin: 5px 0 0; color: var(--text-tertiary); font-size:13px; }.detail-header code { color: var(--text-secondary); font-size:13px; }.detail-actions { position: absolute; top: 0; right: 0; display: flex; gap: 6px; }.detail-actions button { display: flex; align-items: center; gap: 5px; height: 32px; padding: 0 8px; border: 1px solid var(--border-default); border-radius: 7px; background: var(--surface-1); color: var(--text-secondary); font-size:13px; cursor: pointer; }.detail-actions button.primary { border-color: color-mix(in srgb, var(--accent) 48%, var(--border-default)); background: var(--accent-muted); color: var(--accent-strong); }
 .detail-actions button:disabled { cursor: not-allowed; opacity: .55; }
-.entity-strip { display: grid; grid-template-columns: 1fr 20px 1fr .7fr 1.15fr .6fr; align-items: center; margin-bottom: 12px; border-block: 1px solid var(--border-default); background: var(--surface-1); }.entity-strip > div { min-width: 0; padding: 9px 12px; border-right: 1px solid var(--border-subtle); }.entity-strip > div:last-child { border-right: 0; }.entity-strip > i { color: var(--accent-strong); font-style: normal; text-align: center; }.entity-strip span,.entity-strip b { display: block; }.entity-strip span { color: var(--text-tertiary); font-size:12px; }.entity-strip b { margin-top: 2px; overflow: hidden; color: var(--text-secondary); font-size:13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.entity-strip { display: grid; grid-template-columns: 1fr 20px 1fr .7fr 1.15fr .6fr; align-items: center; margin-bottom: 12px; border-block: 1px solid var(--border-default); background: var(--surface-1); }.entity-strip > div { min-width: 0; padding: 9px 12px; border-right: 1px solid var(--border-subtle); }.entity-strip > div:last-child { border-right: 0; }.entity-strip > i { color: var(--accent-strong); font-style: normal; text-align: center; }.entity-strip span,.entity-strip b { display: block; }.entity-strip span { color: var(--text-tertiary); font-size:12px; }.entity-strip b { margin-top: 2px; overflow: hidden; color: var(--text-secondary); font-size:13px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }.entity-strip b .entity-link { color: var(--accent-strong); text-decoration: none; }.entity-strip b .entity-link:hover { text-decoration: underline; }
 .detail-tabs { display: flex; gap: 2px; margin-bottom: 12px; border-bottom: 1px solid var(--border-default); }.detail-tabs button { position: relative; min-height: 35px; padding: 0 11px; border: 0; background: transparent; color: var(--text-tertiary); font-size:13px; cursor: pointer; }.detail-tabs button.active { color: var(--text-primary); }.detail-tabs button.active::after { position: absolute; right: 8px; bottom: -1px; left: 8px; height: 2px; background: var(--accent); content: ''; }.detail-tabs button span { margin-left: 4px; padding: 1px 4px; border-radius: 999px; background: var(--surface-3); font-size:12px; }.tab-content { animation: tab-in 160ms ease; } @keyframes tab-in { from { opacity: 0; transform: translateY(2px); } }
 .detection-lower { display: grid; grid-template-columns: 1.35fr 1fr; gap: 12px; margin-top: 12px; }.panel-title { display: flex; justify-content: space-between; align-items: center; min-height: 41px; padding: 0 12px; border-bottom: 1px solid var(--border-subtle); }.panel-title h2 { margin: 0; font-size:14px; }.panel-title span { color: var(--text-tertiary); font-size:12px; }.feature-rows { padding: 7px 12px 10px; }.feature-rows > div { display: grid; grid-template-columns: minmax(150px,1fr) 75px 1fr 30px; gap: 8px; align-items: center; min-height: 28px; }.feature-rows code,.feature-rows b,.feature-rows em { font-size:13px; }.feature-rows b { color: var(--text-secondary); font-weight: 500; }.feature-rows em { color: var(--text-tertiary); font-style: normal; text-align: right; }.feature-rows i { height: 4px; background: var(--surface-3); }.feature-rows i span { display: block; height: 100%; background: var(--severity-info); }.evidence-summary ul { display: grid; gap: 7px; margin: 0; padding: 10px 12px; list-style: none; }.evidence-summary li { display: flex; gap: 6px; color: var(--text-secondary); font-size:13px; }.evidence-summary li svg { flex: 0 0 auto; color: var(--status-success); }.evidence-summary button { display: flex; align-items: center; justify-content: center; gap: 5px; width: 100%; min-height: 34px; border: 0; border-top: 1px solid var(--border-subtle); background: var(--surface-2); color: var(--accent-strong); font-size:13px; cursor: pointer; }
 .agent-layout { display: grid; grid-template-columns: minmax(0,1fr) 245px; gap: 12px; }.agent-work { min-width: 0; overflow: hidden; }.agent-work :deep(.agent-panel) { border: 0; }.agent-run-notice { display: flex; align-items: center; gap: 6px; min-height: 33px; padding: 0 12px; border-bottom: 1px solid var(--border-subtle); background: color-mix(in srgb,var(--status-warning) 6%,var(--surface-2)); color: var(--status-warning); font-size:12px; }.agent-run-notice span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }.agent-run-notice em { margin-left: auto; color: var(--text-tertiary); font-style: normal; }.agent-side { overflow: hidden; }.agent-side h2 { margin: 0; padding: 10px 12px; border-bottom: 1px solid var(--border-subtle); font-size:14px; }.agent-side > a,.agent-side > button,.agent-side > div { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 49px; padding: 7px 12px; border: 0; border-bottom: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary); text-decoration: none; font-size:13px; cursor: pointer; text-align: left; }.agent-side > button:disabled { opacity: .55; cursor: wait; }.agent-side > div { justify-content: flex-start; gap: 7px; }.agent-side > div b { margin-left: auto; }.agent-side span,.agent-side b { display: block; }.agent-side b { color: var(--text-primary); font-size:13px; }.agent-side > p { margin: 0; padding: 11px 12px; color: var(--text-tertiary); font-size:12px; line-height: 1.55; }

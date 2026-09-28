@@ -24,6 +24,13 @@ export default defineNuxtConfig({
       // BFF route; an empty value keeps the console open (local dev/demo default).
       password: process.env.NUXT_CONSOLE_PASSWORD || '',
       sessionHours: Number(process.env.NUXT_CONSOLE_SESSION_HOURS) || 24,
+      // Login brute-force protection (per remote address, in-memory, process
+      // local). Max failed attempts inside the sliding window before a lockout
+      // of one window length.
+      loginMaxAttempts: Number(process.env.NUXT_CONSOLE_LOGIN_MAX_ATTEMPTS) || 5,
+      loginWindowSeconds: Number(process.env.NUXT_CONSOLE_LOGIN_WINDOW_SECONDS) || 900,
+      // Mark the session cookie Secure when the console is served over HTTPS.
+      cookieSecure: process.env.NUXT_CONSOLE_COOKIE_SECURE === 'true',
     },
     public: {
       apiBase: process.env.NUXT_PUBLIC_API_BASE || '/api',

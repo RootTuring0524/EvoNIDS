@@ -55,13 +55,26 @@ export async function fetchBackend<T>(
         ? error.statusCode
         : 502
     const safeStatus = statusCode >= 400 && statusCode < 500 ? statusCode : 502
+    // FastAPI rejection reasons (e.g. 409 "no passed sandbox run", 422 IR
+    // details) arrive as `detail` in the error payload. Forward the string form
+    // so the console can show why the backend refused instead of a generic
+    // "rejected" message. Non-string details (422 field lists) stay server-side.
+    let detail: string | undefined
+    const payload = typeof error === 'object' && error !== null && 'data' in error
+      ? (error as { data?: unknown }).data
+      : undefined
+    if (typeof payload === 'object' && payload !== null && 'detail' in payload) {
+      const rawDetail = (payload as { detail?: unknown }).detail
+      if (typeof rawDetail === 'string') detail = rawDetail
+    }
     throw createError({
       statusCode: safeStatus,
       statusMessage:
-        safeStatus === 502
+        detail
+        || (safeStatus === 502
           ? 'EvoNIDS backend is unavailable'
-          : 'The EvoNIDS backend rejected the request',
-      data: { requestId },
+          : 'The EvoNIDS backend rejected the request'),
+      data: { requestId, detail: detail ?? null },
     })
   }
 }

@@ -6,7 +6,7 @@ import type { RuleStage } from '~~/shared/types/security'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))
-const activeTab = ref<'rule' | 'validation' | 'diff' | 'evidence'>('rule')
+const activeTab = ref<'rule' | 'validation' | 'diff' | 'evidence' | 'governance'>('rule')
 const deployOpen = ref(false)
 const dialogAction = ref<'repair' | 'reject' | 'deprecate' | null>(null)
 const copied = ref(false)
@@ -147,7 +147,7 @@ async function confirmLifecycle(reason: string) {
 
       <section class="rule-meta"><div><span>攻击类型</span><b>{{ detail.structured.attack_type }}</b></div><div><span>ATT&CK</span><b class="mono">{{ detail.structured.mitre_technique_ids.join(', ') }}</b></div><div><span>来源告警</span><NuxtLink :to="`/alerts/${detail.sourceAlertId}`" class="mono">{{ detail.sourceAlertId }}</NuxtLink></div><div><span>生成来源</span><b>{{ detail.structured.generated_by }}</b></div><div><span>质量分</span><b class="mono good">{{ detail.validation.qualityScore }} / 100</b></div><div><span>父版本</span><b class="mono">{{ detail.structured.parent_rule_id || '根版本' }}</b></div></section>
 
-      <nav class="rule-tabs" aria-label="规则详情视图"><button :class="{active:activeTab==='rule'}" :aria-pressed="activeTab==='rule'" @click="activeTab='rule'"><FileJson2 :size="14" />结构化规则</button><button :class="{active:activeTab==='validation'}" :aria-pressed="activeTab==='validation'" @click="activeTab='validation'"><ShieldCheck :size="14" />回放验证</button><button :class="{active:activeTab==='diff'}" :aria-pressed="activeTab==='diff'" @click="activeTab='diff'"><GitCompare :size="14" />Rule Diff</button><button :class="{active:activeTab==='evidence'}" :aria-pressed="activeTab==='evidence'" @click="activeTab='evidence'"><History :size="14" />证据与 Lineage</button></nav>
+      <nav class="rule-tabs" aria-label="规则详情视图"><button :class="{active:activeTab==='rule'}" :aria-pressed="activeTab==='rule'" @click="activeTab='rule'"><FileJson2 :size="14" />结构化规则</button><button :class="{active:activeTab==='validation'}" :aria-pressed="activeTab==='validation'" @click="activeTab='validation'"><ShieldCheck :size="14" />回放验证</button><button :class="{active:activeTab==='diff'}" :aria-pressed="activeTab==='diff'" @click="activeTab='diff'"><GitCompare :size="14" />Rule Diff</button><button :class="{active:activeTab==='evidence'}" :aria-pressed="activeTab==='evidence'" @click="activeTab='evidence'"><History :size="14" />证据与 Lineage</button><button :class="{active:activeTab==='governance'}" :aria-pressed="activeTab==='governance'" @click="activeTab='governance'"><Rocket :size="14" />规则治理</button></nav>
 
       <div v-if="activeTab === 'rule'" class="rule-content">
         <section class="conditions-panel surface-panel"><div class="panel-head"><div><h2>条件可视化</h2><p>所有条件必须同时满足（AND）</p></div><span>{{ detail.structured.conditions.length }} 个条件</span></div><div class="condition-flow"><template v-for="(condition,index) in detail.structured.conditions" :key="condition.field"><div class="condition-card"><span class="mono">{{ condition.field }}</span><b>{{ condition.operator }}</b><em class="mono">{{ condition.value }}</em></div><i v-if="index < detail.structured.conditions.length - 1">AND</i></template></div><dl><div><dt>攻击阶段</dt><dd>{{ detail.structured.attack_stage }}</dd></div><div><dt>危险等级</dt><dd><SeverityBadge :level="detail.structured.severity" /></dd></div><div><dt>父规则 / 版本</dt><dd class="mono">{{ detail.structured.parent_rule_id || '—' }}</dd></div><div><dt>关联证据</dt><dd>{{ detail.structured.evidence_ids.length }} 条</dd></div></dl></section>
@@ -161,6 +161,10 @@ async function confirmLifecycle(reason: string) {
 
       <RuleDiff v-else-if="activeTab === 'diff' && detail.previousVersion" :before="detail.previousVersion" :after="detail.structured" :reason="detail.diffReason" :coverage-change="detail.expectedCoverageChange" :false-positive-risk="detail.falsePositiveRisk" />
       <EmptyState v-else-if="activeTab === 'diff'" title="当前版本没有父版本" description="产生修复版本后，这里会显示新增、删除和阈值变化。" />
+
+      <div v-else-if="activeTab === 'governance'" class="governance-content">
+        <RuleGovernancePanel :rule-id="id" />
+      </div>
 
       <div v-else class="evidence-content">
         <section class="surface-panel link-panel"><div class="panel-head"><div><h2>关联证据</h2><p>生成与验证均可追踪到来源</p></div></div><NuxtLink v-for="eid in detail.structured.evidence_ids" :key="eid" to="/knowledge"><span><CheckCircle2 :size="14" /><b class="mono">{{ eid }}</b></span><em>已授权 · 参与规则生成</em></NuxtLink><div class="lineage-summary"><span>当前版本</span><b class="mono">v{{ detail.structured.version }}</b><span>父版本</span><b class="mono">{{ detail.structured.parent_rule_id || '根版本' }}</b></div></section>

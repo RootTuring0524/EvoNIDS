@@ -12,6 +12,9 @@ import {
   ShieldCheck,
   ServerCog,
   Waypoints,
+  FolderKanban,
+  Share2,
+  DatabaseZap,
 } from '~/utils/icons'
 import { sensorsResponseSchema } from '~~/shared/schemas/security'
 
@@ -31,6 +34,9 @@ const sections = [
     items: [
       { label: '运营态势', to: '/overview', icon: Activity },
       { label: '告警研判', to: '/alerts', icon: BellRing, badge: '6' },
+      { label: '案件工作台', to: '/cases', icon: FolderKanban },
+      { label: '实体图谱', to: '/entities', icon: Share2 },
+      { label: '证据检索', to: '/evidence', icon: DatabaseZap },
       { label: '流量探索', to: '/traffic', icon: Network },
       { label: '探针与数据源', to: '/sensors', icon: ServerCog },
     ],
