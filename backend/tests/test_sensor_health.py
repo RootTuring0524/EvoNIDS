@@ -61,7 +61,7 @@ def test_sensor_without_batches_reports_unmeasured_metrics():
     with TestClient(app) as client:
         client.post(
             f"/api/v1/sensors/{sensor}/heartbeat",
-            json={"agentVersion": "0.2.0", "spoolDepth": 4, "capabilities": ["suricata-eve"]},
+            json={"agentVersion": "0.1.1", "spoolDepth": 4, "capabilities": ["suricata-eve"]},
             headers=SENSOR_HEADER,
         )
         health = _health(client, sensor)
@@ -126,7 +126,7 @@ def test_heartbeat_persists_agent_identity_and_clock_skew():
         response = client.post(
             f"/api/v1/sensors/{sensor}/heartbeat",
             json={
-                "agentVersion": "0.2.0",
+                "agentVersion": "0.1.1",
                 "capabilities": ["suricata-eve", "zeek-json", "suricata-eve"],
                 "spoolDepth": 12,
                 "droppedEvents": 3,
@@ -138,7 +138,7 @@ def test_heartbeat_persists_agent_identity_and_clock_skew():
         )
         assert response.status_code == 200
         payload = response.json()
-        assert payload["agentVersion"] == "0.2.0"
+        assert payload["agentVersion"] == "0.1.1"
         assert payload["capabilities"] == ["suricata-eve", "zeek-json"]
         assert payload["spoolDepth"] == 12
         assert payload["droppedEvents"] == 3

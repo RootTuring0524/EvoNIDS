@@ -41,7 +41,7 @@ from app.integrations.url_guard import (
     validate_target_url,
 )
 
-USER_AGENT = "evonids-integrations/0.2.0"
+USER_AGENT = "evonids-integrations/0.1.1"
 SIGNATURE_VERSION = "v1"
 RETRYABLE_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
 

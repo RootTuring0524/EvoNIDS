@@ -44,7 +44,7 @@ from app.integrations.url_guard import (
 )
 
 RETRYABLE_STATUSES = frozenset({408, 425, 429, 500, 502, 503, 504})
-USER_AGENT = "evonids-integrations/0.2.0"
+USER_AGENT = "evonids-integrations/0.1.1"
 
 STATUS_OPEN = "open"
 STATUS_UPDATE = "update"

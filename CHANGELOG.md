@@ -5,7 +5,7 @@ All notable changes to EvoNIDS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-09-28
+## [0.1.1] - 2026-09-28
 
 Operational core release: the system grows from a governed detection console
 into a deployable operations platform — online (shadow-mode) dual-channel
@@ -64,10 +64,10 @@ fresh-database migration chain verified end to end.
 
 ### Changed
 
-- Roadmap re-baselined: Flow Transformer moves to v0.3; v0.2 is the
-  operational core release described above.
-- Version bumped to 0.2.0 across `project/package.json`,
-  `backend/pyproject.toml` and `CITATION.cff`.
+- Version bumped to 0.1.1 across `project/package.json`,
+  `backend/pyproject.toml`, `CITATION.cff`, the collector agent version and
+  the outbound integration user agents. The Flow Transformer remains the
+  v0.2 goal and is not part of this release.
 
 ## [0.1.0] - 2026-08-28
 

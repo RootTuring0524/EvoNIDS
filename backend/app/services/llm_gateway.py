@@ -172,7 +172,7 @@ class OpenAICompatibleProvider:
         return {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
-            "User-Agent": "evonids-gateway/0.2.0",
+            "User-Agent": "evonids-gateway/0.1.1",
         }
 
     def chat(

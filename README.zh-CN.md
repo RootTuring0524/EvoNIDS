@@ -11,7 +11,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.1x-009688)
 [![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FRootTuring0524%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/RootTuring0524/EvoNIDS/actions)
 
-> ⚠️ **诚实性声明**——EvoNIDS 是研究/教学系统，不是生产级安全设备。已知攻击通道当前运行刻意保守的 **HistGradientBoosting CPU 基线**，未知异常通道运行 **PyTorch AutoEncoder**；目标架构 **Flow Transformer（掩码特征建模）尚未训练**——它是下一算法迭代的头号目标。界面中每一条模拟或降级路径都有明确标注——我们从不把 Mock 数字包装成实测结果。
+> ⚠️ **诚实性声明**——EvoNIDS 是研究/教学系统，不是生产级安全设备。已知攻击通道当前运行刻意保守的 **HistGradientBoosting CPU 基线**，未知异常通道运行 **PyTorch AutoEncoder**；目标架构 **Flow Transformer（掩码特征建模）规划于 v0.2，尚未训练**。界面中每一条模拟或降级路径都有明确标注——我们从不把 Mock 数字包装成实测结果。
 
 ---
 
@@ -182,7 +182,7 @@ NUXT_DEEPSEEK_MODEL=deepseek-chat
 | Agent 研判 + 候选规则提案 | ✅ 真实（需 DeepSeek 密钥；仅服务端） |
 | 知识检索 | ⚠️ 关键词回退（诚实标注）；向量索引规划中 |
 | 摄取时检测 | ⚠️ 当前经回填脚本；内联推理规划中 |
-| Flow Transformer / MFM 预训练 | 🚧 规划中，尚未训练（未使用 GPU） |
+| Flow Transformer / MFM 预训练 | 🚧 规划 v0.2（未使用 GPU） |
 | 无后端 / Mock Agent 数据的控制台页面 | 🔎 明确标注演示模式 |
 
 ## 仓库结构
@@ -211,8 +211,8 @@ MODEL_CARD.md / DATA_CARD.md   诚实的模型与数据集文档
 
 ## 路线图
 
-- **v0.2（本版本）** —— 运营内核：摄取时影子模式双通道在线检测、案件/调查工作流、证据链与混合 RAG、RBAC 与 API Key、防篡改审计链、规则 IR/沙箱/下发桥、漂移监测、可观测性指标、持久化训练 worker。
-- **v0.3** —— Flow Transformer（MFM 预训练 + 监督微调）在完全相同的切分协议下与已发布的 HGB 基线对比；在混合检索管线之上的向量升级；UNSW-NB15 跨数据集评估。
+- **v0.2** —— Flow Transformer（MFM 预训练 + 监督微调）在完全相同的切分协议下与已发布的 HGB 基线对比；向量混合检索；摄取时内联推理。
+- **v0.3** —— 持久化训练/验证任务队列、UNSW-NB15 跨数据集评估、多传感器联邦。
 - **v0.4** —— 概念漂移监测、主动学习样本队列、可插拔模型 Provider。
 
 ## 引用

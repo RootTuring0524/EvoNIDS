@@ -243,7 +243,7 @@ def build_cef_event(
     *,
     enterprise_id: int = 0,
     device_product: str = "EvoNIDS",
-    device_version: str = "0.2.0",
+    device_version: str = "0.1.1",
     host: str = "",
 ) -> CefEvent:
     """Turn a :class:`Notification` into a CEF event (values pre-redacted)."""

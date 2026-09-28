@@ -25,7 +25,7 @@ from typing import Any, Callable, Iterable, Sequence
 from app.collector.spool import DiskSpool, SpoolFull, SpoolSegment
 from app.collector.transport import Transport, TransportError
 
-AGENT_VERSION = "0.2.0"
+AGENT_VERSION = "0.1.1"
 RETRYABLE_STATUS = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 

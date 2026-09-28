@@ -39,7 +39,7 @@ SPEC_VERSION = "2.1"
 # A stable private namespace for EvoNIDS-derived STIX ids. This is a UUIDv5
 # namespace, not a secret: it only makes ids reproducible across deployments.
 EVONIDS_STIX_NAMESPACE = uuid.UUID("6f1a7c1e-6f2b-5c34-9a10-2b7c9d4e5f60")
-DEVICE_VERSION = "0.2.0"
+DEVICE_VERSION = "0.1.1"
 
 DOMAIN_PATTERN = re.compile(r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(?:\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))+$")
 IPV4_PATTERN = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")

@@ -550,12 +550,12 @@ def test_cef_escaping_round_trips_pipe_backslash_and_equals():
     # Frame integrity: the pipes inside the message body stay escaped, so the
     # round trip above cannot have been produced by an injected separator.
     assert r"scan \| probe" in cef
-    assert r"EvoNIDS|0.2.0" in cef  # the real header separators are unescaped
+    assert r"EvoNIDS|0.1.1" in cef  # the real header separators are unescaped
     assert parsed.severity == CEF_SEVERITY["high"]
 
 
 def test_cef_message_containing_raw_headers_cannot_break_the_frame():
-    event = _alert_event(title="boom|EvoNIDS|0.2.0|forged|name|10|cs1=evil", object_id="ALT|2")
+    event = _alert_event(title="boom|EvoNIDS|0.1.1|forged|name|10|cs1=evil", object_id="ALT|2")
     cef = build_cef_event(event).serialize()
     parsed = parse_cef(cef)
     assert parsed.device_product == "EvoNIDS"
