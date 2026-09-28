@@ -123,6 +123,14 @@ jobs:
         # committed. Archived training logs under docs/evidence/ are historical
         # evidence and keep their original host paths; the workflow file itself is
         # excluded because it contains these patterns as data.
+        #
+        # Runs from the repository root, overriding the job's backend/ default:
+        # pathspecs are resolved against the working directory, so the exclusions
+        # below only match where they were written. (From backend/ the exclusion
+        # ":!backend/tests/**" became "backend/backend/tests/**" and excluded
+        # nothing, which made the legitimate sample key in the redaction test fail
+        # the credential check.)
+        working-directory: .
         run: |
           if git grep -nE 'D:\\IDS System|C:\\Users\\' -- ':!*.lock' ':!docs/learning-notes.zh.md' ':!docs/evidence/**' ':!.github/workflows/ci.yml'; then
             echo "::error::machine-specific path found in the repository"
