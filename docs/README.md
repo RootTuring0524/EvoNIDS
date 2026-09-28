@@ -13,7 +13,7 @@
 | [adr/0009-model-evaluation-protocol.md](adr/0009-model-evaluation-protocol.md) | 中文 | 模型评估协议：CICIDS2017 随机切分不构成生产证据，强制四种切分与未测量禁 0。 |
 | [adr/0010-online-detection-and-fusion.md](adr/0010-online-detection-and-fusion.md) | 中文 | 在线检测与可解释风险融合：`flow-online-v1` 特征契约、通道信号/融合评估分离、shadow 默认与开启条件。 |
 | [adr/0012-rule-ir-and-suricata-sandbox.md](adr/0012-rule-ir-and-suricata-sandbox.md) | 中文 | 规则 IR、确定性 Suricata 编译、真实沙箱回放与灰度/回滚门禁。 |
-| [releases/v0.1.1.md](releases/v0.1.1.md) | 中文 | v0.1.1 生产化发布说明（候选）：真实测量结果、未测量清单、升级与回滚步骤。 |
+| [releases/v0.1.1.md](releases/v0.1.1.md) | 中文 | v0.1.1 发布说明（已发布）：真实测量结果、未测量清单、升级与回滚步骤。 |
 | [adr/0013-oidc-rbac-and-tenants.md](adr/0013-oidc-rbac-and-tenants.md) | 中文 | OIDC 身份验证、RBAC 权限矩阵、租户/工作区隔离与审计哈希链（含离线校验）。 |
 | [security/threat-model.md](security/threat-model.md) | 中文 | 正式威胁模型：12 类威胁 × 资产/路径/现有缓解/残余风险/未实现项。 |
 | [integrations.md](integrations.md) | 中文 | 出站集成连接器（Webhook / Syslog-CEF / STIX 2.1 / 工单）的环境变量、API 与安全边界。 |
