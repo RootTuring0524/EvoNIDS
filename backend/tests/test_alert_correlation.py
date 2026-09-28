@@ -2,7 +2,7 @@
 import os
 import tempfile
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 
 database_path = Path(tempfile.gettempdir()) / "evonids-correlation-test.db"
@@ -102,6 +102,7 @@ def _seed_alerts(
     destination_port: int = 445,
     severity: str = "high",
     risk: float = 80.0,
+    align_window_minutes: int | None = 30,
 ) -> list[str]:
     ids: list[str] = []
     with SessionLocal() as db:
@@ -109,6 +110,24 @@ def _seed_alerts(
             db.add(Sensor(id=sensor, name=sensor, state="online", metadata_json={}))
             db.flush()
         base = utc_now().replace(tzinfo=None)
+        if align_window_minutes and count > 1:
+            # ``dedup_signature`` floors alert timestamps to fixed windows, so a
+            # campaign that straddles a window edge legitimately splits into two
+            # clusters (and a one-alert remainder is dropped by ``min_size``).
+            # Anchor the seeded campaign inside a single window instead of
+            # depending on where the wall clock happens to sit when the suite
+            # runs — otherwise these assertions fail a few minutes out of every
+            # half hour (and CI, running in UTC, hits those minutes too).
+            span = timedelta(minutes=(count - 1) * minutes_apart)
+            window_seconds = align_window_minutes * 60
+            if span.total_seconds() < window_seconds:
+                bucket_start = (int(base.timestamp()) // window_seconds) * window_seconds
+                aligned = datetime.fromtimestamp(bucket_start)
+                if aligned + span > base:
+                    # Too early in the window to fit the whole campaign: use the
+                    # previous window, which is entirely in the past.
+                    aligned = datetime.fromtimestamp(bucket_start - window_seconds)
+                base = aligned + span
         for index in range(count):
             alert_id = f"ALT-CORR-{uuid.uuid4().hex[:12].upper()}"
             db.add(
