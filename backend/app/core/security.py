@@ -96,6 +96,10 @@ class RateLimiter:
         if len(self._buckets) >= self.max_keys:
             self._buckets.clear()
 
+    def reset(self) -> None:
+        """Drop every bucket. Used by tests to isolate per-case budgets."""
+        self._buckets.clear()
+
 
 def client_key(request: Request) -> str:
     principal = getattr(request.state, "principal", None)

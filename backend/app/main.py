@@ -105,10 +105,14 @@ app.add_middleware(
 )
 # HSTS is only meaningful behind TLS, which production requires.
 app.add_middleware(SecurityHeadersMiddleware, hsts=settings.environment == "production")
+# Named so tests can reset the buckets between cases: the limiters are keyed by
+# principal, and a suite that shares one process shares one bucket per principal.
+write_limiter = RateLimiter(per_minute=settings.rate_limit_write_per_minute)
+ingest_limiter = RateLimiter(per_minute=settings.rate_limit_ingest_per_minute, burst=200)
 app.add_middleware(
     GuardMiddleware,
-    write_limiter=RateLimiter(per_minute=settings.rate_limit_write_per_minute),
-    ingest_limiter=RateLimiter(per_minute=settings.rate_limit_ingest_per_minute, burst=200),
+    write_limiter=write_limiter,
+    ingest_limiter=ingest_limiter,
     max_json_body_bytes=settings.max_json_body_bytes,
     enabled=settings.rate_limit_enabled,
 )
