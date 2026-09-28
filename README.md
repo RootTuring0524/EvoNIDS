@@ -11,7 +11,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.1x-009688)
 [![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FRootTuring0524%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/RootTuring0524/EvoNIDS/actions)
 
-> ⚠️ **Honesty statement** — EvoNIDS is a research/teaching system, not a production appliance. The known-attack channel currently runs a deliberately conservative **HistGradientBoosting CPU baseline** and the unknown-anomaly channel runs a **PyTorch AutoEncoder**. The target **Flow Transformer (masked feature modeling)** is planned for v0.2 and is *not* trained yet. Every simulated or degraded path in the UI is explicitly labeled — we never present mock numbers as measured ones.
+> ⚠️ **Honesty statement** — EvoNIDS is a research/teaching system, not a production appliance. The known-attack channel currently runs a deliberately conservative **HistGradientBoosting CPU baseline** and the unknown-anomaly channel runs a **PyTorch AutoEncoder**. The target **Flow Transformer (masked feature modeling)** is *not* trained yet — it is the headline goal of the next algorithm iteration. Every simulated or degraded path in the UI is explicitly labeled — we never present mock numbers as measured ones.
 
 ---
 
@@ -78,7 +78,9 @@ flowchart LR
   GOV --- REPLAY
 ```
 
-Planned (not implemented yet, see [Roadmap](#roadmap)): Flow Transformer with MFM self-supervised pretraining, hybrid vector + keyword retrieval, inference during ingestion, real-time capture, durable training job queue.
+Implemented since v0.1.0 (see `docs/adr/` for the decisions): hybrid BM25 + vector retrieval with retrieval snapshots and tenant/expiry filters (ADR-0011), inline detection during ingestion with persisted per-channel signals and explainable fusion (ADR-0010, default `shadow`), a durable collector with disk spool and idempotent batches (ADR-0008, `docs/collector.md`), a provider-agnostic LLM gateway with retry/circuit/budget (ADR-0011), evidence-cited investigation claims (ADR-0011), and Rule IR compilation with a real Suricata sandbox gate (ADR-0012).
+
+Still planned (see [Roadmap](#roadmap)): Flow Transformer with MFM self-supervised pretraining, NATS JetStream/ClickHouse/MinIO (trigger conditions in ADR-0008), and a distributed multi-replica rate limiter.
 
 ## Quickstart
 
@@ -121,6 +123,14 @@ Windows users can also run the one-command demo: `.\start-demo.ps1` from the rep
 cp .env.example .env    # fill in tokens; DeepSeek values optional
 docker compose up --build
 # Nuxt: http://localhost:3000 · FastAPI docs: http://localhost:8000/docs
+```
+
+For production (fail-fast required credentials, mandatory console password,
+resource limits, health checks, log rotation and backup labels — see
+[docs/deployment.md](docs/deployment.md)):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 ### 4. Optional: live DeepSeek agent
@@ -169,11 +179,18 @@ Full numbers and methodology: [MODEL_CARD.md](MODEL_CARD.md). Highlights on the 
 
 | Capability | Status |
 |---|---|
-| EVE ingestion, sensor registry, heartbeats, audit log, rule lifecycle, replay validation, dataset registry + profiler, HGB training pipeline, AutoEncoder training, dual-channel backfill inference, agent-run persistence | ✅ Real, persisted, auditable |
-| Agent analysis + candidate rule proposal | ✅ Real (requires DeepSeek key; server-side only) |
-| Knowledge retrieval | ⚠️ Keyword fallback (honestly labeled); vector index planned |
-| Detection during ingestion | ⚠️ Via backfill script today; inline inference planned |
-| Flow Transformer / MFM pretraining | 🚧 Planned v0.2 (no GPU used in v0.1) |
+| EVE ingestion (single request and idempotent batch), sensor registry, heartbeats, data-quality metrics, audit log, rule lifecycle, predicate replay validation, dataset registry + profiler, HGB training pipeline, AutoEncoder training, dual-channel backfill inference, agent-run persistence | ✅ Real, persisted, auditable |
+| Inline detection during ingestion | ✅ Real, **`shadow` by default**: per-channel `detection_signals` + one explainable `risk_assessments` row per flow, with imputed features, calibration state and degradation reasons persisted. No alert is raised until an online-contract model passes the evaluation protocol and an operator sets `EVONIDS_DETECTION_MODE=enabled` |
+| Online-contract models (`flow-online-v1`) | ✅ Trained on the real dataset with a time-ordered split; artifacts carry `featureContract` and are preferred by the detector (zero imputation). Measured on the held-out window: baseline OvR ROC-AUC 0.9724 / PR-AUC 0.9387, AutoEncoder ROC-AUC 0.9079 / AP 0.8734, recall 38.8% at the 5%-FPR threshold. Class-wise macro-F1 is **0.062** — the honest reason alerting stays in shadow mode |
+| LLM gateway (DeepSeek/OpenAI-compatible/vLLM/Ollama/mock) | ✅ Real, provider-agnostic, with timeout, retry, circuit breaker, concurrency cap, per-run/daily budget and honest cost reporting (`costEstimated=false` when the price is unknown) |
+| AI investigation with evidence-cited claims | ✅ Real (requires a configured provider). Claims citing evidence outside the whitelist are stored rejected with the reason; no provider → `degraded` run that produces no inference |
+| Knowledge retrieval | ✅ Hybrid BM25 + vector (offline hashing embedder by default, OpenAI-compatible embeddings when configured), trust/workspace/expiry filters, injection quarantine, reproducible retrieval snapshot. Semantic quality of the hashing embedder is **not measured** |
+| Rule IR → Suricata compilation | ✅ Real, validated, deterministic, escaping tested |
+| Real Suricata syntax check + PCAP replay | ⚠️ Harness is real and tested with an injected executor; **this host has no Suricata binary**, so every run is recorded as `blocked` with the reason and carries no metrics. Deployment is refused without a passed sandbox run |
+| Model rollout (shadow/canary/active/retired) + audited rollback | ✅ Real, registry-backed |
+| Drift monitoring (PSI/KS + prediction drift) | ✅ Real when a model artifact carries a reference distribution; otherwise `not_measured` |
+| Kubernetes/Helm chart, backup/restore scripts, runbooks | 📄 Written and statically checked; **not executed** here (no Helm/Docker/kubectl on this host) |
+| Flow Transformer / MFM pretraining | 🚧 Planned, not trained (no GPU used) |
 | Console pages without backend/mock agent data | 🔎 Explicitly labeled demo mode |
 
 ## Repository layout
@@ -202,8 +219,8 @@ MODEL_CARD.md / DATA_CARD.md   honest model & dataset documentation
 
 ## Roadmap
 
-- **v0.2** — Flow Transformer (masked feature modeling pretraining + supervised fine-tune) benchmarked against the shipped HGB baseline under the identical split protocol; hybrid vector retrieval; inline inference during ingestion.
-- **v0.3** — durable training/validation job queue, UNSW-NB15 cross-dataset evaluation, multi-sensor federation.
+- **v0.2 (this release)** — operational core: shadow-mode online dual-channel detection during ingestion, case/investigation workflow, evidence chain with hybrid RAG, RBAC + API keys, tamper-evident audit chain, rule IR/sandbox/deployment bridge, drift monitoring, observability metrics, durable training worker.
+- **v0.3** — Flow Transformer (masked feature modeling pretraining + supervised fine-tune) benchmarked against the shipped HGB baseline under the identical split protocol; vector retrieval upgrade on top of the hybrid pipeline; UNSW-NB15 cross-dataset evaluation.
 - **v0.4** — concept drift monitoring, active-learning sample queue, pluggable model providers.
 
 ## Citation

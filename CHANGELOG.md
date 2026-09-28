@@ -5,10 +5,49 @@ All notable changes to EvoNIDS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-28
+
+Operational core release: the system grows from a governed detection console
+into a deployable operations platform — online (shadow-mode) dual-channel
+detection during ingestion, a case/investigation workflow over an evidence
+chain, multi-tenant RBAC, a tamper-evident audit chain, and a rule pipeline
+that reaches from LLM proposal to a Suricata deployment bridge. Everything
+below ships with 314 backend tests, 112 frontend unit tests, and a
+fresh-database migration chain verified end to end.
 
 ### Added
 
+- **Online detection (shadow by default)** — `EVONIDS_DETECTION_MODE`
+  (`disabled` / `shadow` / `enabled`) controls per-event dual-channel scoring
+  during EVE ingestion. Shadow mode persists `DetectionSignal` rows and a
+  fused `RiskAssessment` per flow without raising alerts or flipping flow
+  verdicts, records explicit `abstain`/degraded signals when a model or
+  artifact is unavailable, and never breaks ingestion. Alerting stays off
+  until an online-contract model and an evaluated operating point exist
+  (ADR 0010); the `enabled` code path is implemented and tested.
+- **Case & investigation workflow** — `cases`, `evidence`, `entities`,
+  `investigations` domains with typed routes, persistence, correlation
+  service, and an investigation worker; console pages and E2E coverage for
+  the primary flow.
+- **Evidence chain & hybrid RAG** — evidence records with provenance, a
+  retrieval pipeline combining persisted knowledge evidence with lexical
+  scoring, and replay-corpus tooling for fixed validation sample sets.
+- **RBAC, API keys, OIDC** — tenant/workspace scoping across cases, evidence,
+  detection signals and investigations; machine-to-machine API key
+  management; OpenID Connect groundwork for console identity.
+- **Tamper-evident audit chain** — sequence + hash columns on audit events
+  with an `audit_integrity` verification endpoint.
+- **Rule pipeline to deployment** — rule IR with a structured sandbox,
+  governance extensions (extended lifecycle tests), a Suricata rule bridge
+  and deployment service, and replay validation against fixed corpora.
+- **Sensor health & collection** — derived sensor health signals, collector
+  documentation, and a hardened sensor identity path.
+- **Model operations** — model rollout state, evaluation service, drift
+  monitoring, and a durable training worker separated from the API process.
+- **LLM gateway** — provider-neutral gateway with audit hooks behind the
+  `llm` routes, complementing the DeepSeek agent integration.
+- **Observability** — metrics route and observability service; production
+  compose file (`docker-compose.prod.yml`) and `deploy/` assets.
 - Optional console password authentication: setting `NUXT_CONSOLE_PASSWORD`
   enables login for every console page and `/api/**` BFF route
   (`POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/status`)
@@ -20,6 +59,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Settings status panel with a live connection test against the upstream
   `/models` endpoint, and actionable setup guidance when DeepSeek is not
   configured.
+- Twelve new ADRs (0002–0013) under `docs/adr/` plus deployment, security,
+  runbook, integrations, collector and model-evaluation documentation.
+
+### Changed
+
+- Roadmap re-baselined: Flow Transformer moves to v0.3; v0.2 is the
+  operational core release described above.
+- Version bumped to 0.2.0 across `project/package.json`,
+  `backend/pyproject.toml` and `CITATION.cff`.
 
 ## [0.1.0] - 2026-08-28
 
