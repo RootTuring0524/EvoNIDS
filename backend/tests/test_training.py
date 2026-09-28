@@ -22,8 +22,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from pydantic import ValidationError  # noqa: E402
 from sqlalchemy import select  # noqa: E402
 
-from app.db.models import TrainingRun  # noqa: E402
-from app.db.session import SessionLocal  # noqa: E402
+from app.db.models import DatasetAsset, TrainingRun  # noqa: E402
+from app.db.base import Base  # noqa: E402
+from app.db.session import SessionLocal, engine  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -38,6 +39,15 @@ from app.services.training import (  # noqa: E402
     _is_identifier_or_target_proxy,
     recover_interrupted_training_runs,
 )
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _create_schema():
+    # Session-scoped settings mean the effective database is whichever module
+    # imported first; create the schema here too so this module also works when
+    # it is the one that lands first (or is run on its own).
+    Base.metadata.create_all(engine)
+    yield
 
 
 def test_real_baseline_training_persists_metrics_and_loadable_artifact():
@@ -92,8 +102,11 @@ def test_real_baseline_training_persists_metrics_and_loadable_artifact():
         assert queued.status_code == 202
         run_id = queued.json()["id"]
         # The request path only queues; the in-process training worker executes
-        # the run, so poll until the terminal state arrives.
-        deadline = time.time() + 120
+        # the run, so poll until the terminal state arrives. The budget is
+        # generous because this fits a real estimator: a loaded CI runner can
+        # take far longer than a local machine, and a short deadline made the
+        # suite fail intermittently (the job itself allows 20 minutes).
+        deadline = time.time() + 300
         payload = None
         while time.time() < deadline:
             completed = client.get(f"/api/v1/training/runs/{run_id}")
@@ -169,7 +182,43 @@ def test_interrupted_in_process_training_is_failed_on_recovery():
         completed = db.scalar(
             select(TrainingRun).where(TrainingRun.state == "succeeded").limit(1)
         )
-        assert completed is not None
+        if completed is None:
+            # Stay independent of the full training run above: recovery only
+            # needs a dataset identity to hang the interrupted row on, so
+            # synthesize the reference rows when the real run is absent. This
+            # keeps a failure in the long test from cascading into this one.
+            if db.get(DatasetAsset, "DS-RECOVERY-FIXTURE") is None:
+                db.add(
+                    DatasetAsset(
+                        id="DS-RECOVERY-FIXTURE",
+                        name="Recovery fixture",
+                        version="test-only-v1",
+                        relative_path="recovery-fixture.csv",
+                        format="csv",
+                        state="ready",
+                    )
+                )
+            completed = TrainingRun(
+                id="TRN-RECOVERY-REFERENCE",
+                dataset_id="DS-RECOVERY-FIXTURE",
+                model_id=None,
+                task="known_attack_classification_baseline",
+                algorithm="hist_gradient_boosting",
+                state="succeeded",
+                requested_by="integration-test",
+                dataset_sha256="0" * 64,
+                feature_version="tabular-baseline-v1",
+                config={},
+                samples_seen=1,
+                samples_used=1,
+                metrics={},
+            )
+            db.add(completed)
+            db.flush()
+        stale = db.get(TrainingRun, "TRN-INTERRUPTED-TEST")
+        if stale is not None:
+            db.delete(stale)
+            db.flush()
         interrupted = TrainingRun(
             id="TRN-INTERRUPTED-TEST",
             dataset_id=completed.dataset_id,
@@ -188,7 +237,9 @@ def test_interrupted_in_process_training_is_failed_on_recovery():
         db.add(interrupted)
         db.commit()
 
-        assert recover_interrupted_training_runs(db) == 1
+        # Recover whatever was left running — this module's row plus anything an
+        # earlier failure orphaned — then assert our row specifically flipped.
+        assert recover_interrupted_training_runs(db) >= 1
         db.refresh(interrupted)
         assert interrupted.state == "failed"
         assert interrupted.completed_at is not None
