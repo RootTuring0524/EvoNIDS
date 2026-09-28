@@ -62,8 +62,11 @@ def _posix_child_usage() -> tuple[float | None, int | None, str, str | None]:
 def _windows_child_usage(handle: int) -> tuple[float | None, int | None, str, str | None]:
     """Read CPU time and peak working set from a running process handle."""
     try:
-        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        # WinDLL/get_last_error exist only on Windows: the checker runs on Linux
+        # in CI, where the ctypes stubs do not carry them. The call sites are
+        # already guarded by sys.platform.
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)  # type: ignore[attr-defined]
     except OSError as error:  # pragma: no cover - non-Windows
         return None, None, "unavailable", str(error)
 
@@ -93,7 +96,7 @@ def _windows_child_usage(handle: int) -> tuple[float | None, int | None, str, st
         ctypes.byref(user),
     )
     if not ok:
-        return None, None, "unavailable", f"GetProcessTimes failed ({ctypes.get_last_error()})"
+        return None, None, "unavailable", f"GetProcessTimes failed ({ctypes.get_last_error()})"  # type: ignore[attr-defined]
 
     def to_seconds(value: FILETIME) -> float:
         return ((value.dwHighDateTime << 32) | value.dwLowDateTime) / 10_000_000
@@ -158,7 +161,7 @@ def run_measured(
     finally:
         if handle:
             try:
-                ctypes.WinDLL("kernel32").CloseHandle(ctypes.c_void_p(handle))
+                ctypes.WinDLL("kernel32").CloseHandle(ctypes.c_void_p(handle))  # type: ignore[attr-defined]
             except OSError:  # pragma: no cover - defensive
                 pass
     wall = time.perf_counter() - started
