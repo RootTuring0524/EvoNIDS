@@ -74,7 +74,21 @@ jobs:
         continue-on-error: true
       - name: Run tests
         # pytest config lives in backend/pyproject.toml: testpaths = ["tests"], pythonpath = ["."].
-        run: pytest -q
+        # Failure IDs are surfaced as annotations so a red run is diagnosable
+        # without downloading the job log.
+        run: |
+          set +e
+          pytest -q --tb=line > pytest-report.log 2>&1
+          status=$?
+          tail -n 80 pytest-report.log
+          if [ "$status" -ne 0 ]; then
+            grep -E "^(FAILED|ERROR) " pytest-report.log | head -25 | while IFS= read -r line; do
+              echo "::error title=pytest::$line"
+            done
+            summary=$(grep -E "^[0-9]+ (failed|passed)" pytest-report.log | tail -n 1)
+            echo "::error title=pytest-summary::${summary:-no summary line}"
+          fi
+          exit "$status"
       - name: Type check (mypy)
         # First-party code must stay clean; untyped data-science packages are
         # ignored via [[tool.mypy.overrides]] in backend/pyproject.toml.
