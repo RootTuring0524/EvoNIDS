@@ -92,7 +92,18 @@ jobs:
       - name: Type check (mypy)
         # First-party code must stay clean; untyped data-science packages are
         # ignored via [[tool.mypy.overrides]] in backend/pyproject.toml.
-        run: mypy app
+        # Errors are surfaced as annotations for the same reason as pytest.
+        run: |
+          set +e
+          mypy app > mypy-report.log 2>&1
+          status=$?
+          tail -n 60 mypy-report.log
+          if [ "$status" -ne 0 ]; then
+            grep -E ": error:" mypy-report.log | head -25 | while IFS= read -r line; do
+              echo "::error title=mypy::$line"
+            done
+          fi
+          exit "$status"
       - name: Migration cycle check
         # A fresh SQLite database must survive upgrade -> downgrade base -> upgrade,
         # and must land on the head revision reported by Alembic itself (never a

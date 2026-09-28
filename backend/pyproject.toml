@@ -59,3 +59,12 @@ warn_unused_configs = true
 # Installed but untyped data-science packages: analyzed as Any.
 module = ["pandas.*", "sklearn.*", "joblib", "torch.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# TabularAutoEncoder is a factory class whose __new__ returns a dynamically
+# built torch.nn.Module subclass (torch is imported lazily so the API still runs
+# without the ML extra). mypy 1.x resolves attributes against the class object
+# rather than the __new__ return type, so silence exactly those two diagnostics
+# here instead of blanketing the module.
+module = ["app.services.autoencoder"]
+disable_error_code = ["attr-defined", "operator"]
