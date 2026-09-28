@@ -1,0 +1,26 @@
+apiVersion: v2
+name: evonids
+description: >-
+  EvoNIDS (智能入侵检测与规则演进平台) — FastAPI backend + Nuxt 4 console +
+  PostgreSQL(pgvector). Companion Helm chart for the Docker Compose stack;
+  image tags must be built and pushed by the operator (see README.md).
+type: application
+
+# Chart version. Bump it on any template/values change that operators should review.
+version: 0.1.0
+
+# Application version the chart deploys by default. Keep in sync with
+# backend/app/main.py (`version="0.1.0"`) and the image.tag default.
+appVersion: "0.1.0"
+
+# NetworkPolicy "default-deny" ingress/egress and autoscaling/v2 HPA resources
+# require a recent control plane.
+kubeVersion: ">=1.26.0-0"
+
+keywords:
+  - ids
+  - nids
+  - fastapi
+  - nuxt
+  - postgresql
+  - pgvector

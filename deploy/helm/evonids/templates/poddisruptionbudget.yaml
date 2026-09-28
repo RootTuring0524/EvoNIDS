@@ -1,0 +1,54 @@
+{{- /*
+  PodDisruptionBudgets. postgres is enabled by default with minAvailable 1 to
+  protect the only database instance from voluntary disruption — note this
+  also blocks node drains while the pod is healthy; disable it
+  (postgres.pdb.enabled=false) during planned node maintenance.
+*/ -}}
+{{- if .Values.postgres.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "evonids.postgresFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.postgres.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "postgres") | nindent 6 }}
+{{- end }}
+{{- if and .Values.api.pdb.enabled .Values.postgres.pdb.enabled }}
+---
+{{- end }}
+{{- if .Values.api.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "evonids.apiFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "api") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.api.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "api") | nindent 6 }}
+{{- end }}
+{{- if and .Values.web.pdb.enabled (or .Values.postgres.pdb.enabled .Values.api.pdb.enabled) }}
+---
+{{- end }}
+{{- if .Values.web.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "evonids.webFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "web") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.web.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "web") | nindent 6 }}
+{{- end }}

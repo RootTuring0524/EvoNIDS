@@ -1,0 +1,301 @@
+# ---------------------------------------------------------------------------
+# EvoNIDS Helm chart — default values.
+#
+# Every variable name used below is derived from docker-compose.yml,
+# docker-compose.prod.yml, backend/app/core/config.py, backend/.env.example,
+# project/.env.example and nuxt.config.ts. No invented env vars.
+#
+# No secrets live in this file or in values-production.yaml. Real credentials
+# go into `secrets.*` via `--set`, a private `-f secrets.yaml` file, or an
+# existing Secret (see `secrets.existingSecret` and secret.yaml).
+# ---------------------------------------------------------------------------
+
+# Release-name override used to build resource names.
+fullnameOverride: ""
+
+# ---------------------------------------------------------------------------
+# Images. The api/web images are NOT published anywhere by default: build them
+# from this repository and push to your registry, then point these values at it:
+#   docker compose -f docker-compose.yml build api web
+#   docker tag <compose-image> <registry>/evonids/api:<tag>
+# ---------------------------------------------------------------------------
+image:
+  registry: docker.io
+  pullPolicy: IfNotPresent
+  # Default tag applied to api and web.
+  tag: "0.1.0"
+  apiRepository: evonids/api
+  webRepository: evonids/web
+  postgresRepository: pgvector/pgvector
+  # pgvector image tag family used by docker-compose.yml (pgvector/pgvector:pg17).
+  postgresTag: pg17
+  # Pull secrets attached to every workload (private registry auth).
+  pullSecrets: []
+
+# Namespace handling. Chart resources always land in `.Release.Namespace`;
+# when `create` is true an extra Namespace object (named like the release
+# namespace) is rendered so `helm install -n evonids` works without
+# `--create-namespace`.
+namespace:
+  create: false
+  # Name of the created Namespace object (defaults to the release namespace).
+  name: ""
+  annotations: {}
+
+# Shared pod/container security context for stateless workloads (api, web,
+# migration-job, helm test). The backend Dockerfiles already run as uid 10001.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# ---------------------------------------------------------------------------
+# Secrets (values-driven only — never hardcode credentials).
+# All keys are optional here; leaving a token empty means "not configured"
+# (the backend treats empty/whitespace tokens as unset). In production the API
+# refuses to boot without admin + sensor tokens and a PostgreSQL URL
+# (validate_production_settings in backend/app/core/config.py).
+#
+# Canonical Secret keys produced by secret.yaml:
+#   admin-token, sensor-token, analyst-token,
+#   postgres-password, console-password, deepseek-api-key
+#
+# When `secrets.existingSecret` is set (external-secrets / manually created),
+# the chart does not render a Secret and expects the referenced Secret to
+# contain the same canonical keys (optional ones may be omitted only if the
+# consuming secretKeyRefs are marked optional in the deployments).
+# ---------------------------------------------------------------------------
+secrets:
+  create: true
+  existingSecret: ""
+  adminApiToken: ""
+  sensorIngestToken: ""
+  analystApiToken: ""
+  postgresPassword: ""
+  consolePassword: ""
+  deepseekApiKey: ""
+
+# ---------------------------------------------------------------------------
+# PostgreSQL (single-instance primary, pgvector/pgvector image).
+# ---------------------------------------------------------------------------
+postgres:
+  # Keep 1: the chart mounts one static PVC and does not implement HA /
+  # replication. For HA use a managed PostgreSQL or a dedicated operator and
+  # point `api.env.databaseUrlOverride` / `secrets.postgresPassword` at it.
+  replicas: 1
+  user: evonids
+  database: evonids
+  service:
+    type: ClusterIP
+    port: 5432
+    annotations: {}
+  persistence:
+    enabled: true
+    # Empty string = default StorageClass.
+    storageClass: ""
+    size: 20Gi
+    # Reuse an existing claim instead of postgres-pvc.yaml (name must match).
+    existingClaim: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  pdb:
+    enabled: true
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+
+# ---------------------------------------------------------------------------
+# api — FastAPI (uvicorn, port 8000). env var names mirror
+# backend/app/core/config.py (EVONIDS_*) and docker-compose.yml.
+# ---------------------------------------------------------------------------
+api:
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8000
+    annotations: {}
+  env:
+    # docker-compose.prod.yml forces production (backend refuses to boot
+    # without tokens / PostgreSQL in this mode).
+    environment: production
+    corsOrigins:
+      - "http://localhost:3000"
+    # Docker Compose sets EVONIDS_AUTO_CREATE_DB=false and relies on Alembic.
+    autoCreateDb: false
+    logLevel: INFO
+    trainingCpuThreads: "0"
+    # Same container paths as docker-compose.yml mounts.
+    datasetRoot: /data/evonids/datasets
+    modelArtifactRoot: /data/evonids/models
+    # Optional literal DSN override. When empty the chart composes
+    #   postgresql+psycopg://<user>:<password>@<postgres-svc>:5432/<database>
+    # at runtime from the POSTGRES_* env vars. Set it when the password or the
+    # database lives outside this chart (external/HA PostgreSQL), or when the
+    # password contains characters that need explicit URL-encoding.
+    databaseUrlOverride: ""
+  # Shared persistent volume for registered datasets (read/write here because
+  # profile/training tooling re-checks the files) and trained model artifacts.
+  # Compose keeps these in named volumes ./backend/datasets (host) and
+  # evonids-models.
+  dataVolume:
+    enabled: true
+    # ReadWriteOnce keeps api replicas = 1; use ReadWriteMany (RWX-capable
+    # StorageClass / driver) before scaling the api Deployment.
+    accessModes:
+      - ReadWriteOnce
+    storageClass: ""
+    size: 20Gi
+    existingClaim: ""
+  resources:
+    requests:
+      cpu: "500m"
+      memory: 1Gi
+    limits:
+      # docker-compose.yml caps the api container at 6 CPU / 8 GiB.
+      cpu: "6"
+      memory: 8Gi
+  autoscaling:
+    # Default off. The training worker is an in-process single-thread loop
+    # (docs/adr/0004) that claims `queued` rows without row locks, and the PVC
+    # is single-writer oriented — keep replicas = 1 unless you accept those
+    # constraints (see README.md).
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+
+# ---------------------------------------------------------------------------
+# web — Nuxt 4 console / BFF (node .output/server/index.mjs, port 3000).
+# env var names mirror project/.env.example and project/nuxt.config.ts.
+# ---------------------------------------------------------------------------
+web:
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 80
+    annotations: {}
+  env:
+    # When empty the chart uses http://<api-service>:8000/api/v1.
+    backendApiBase: ""
+    useMockApi: false
+    consoleSessionHours: "24"
+    consoleLoginMaxAttempts: "5"
+    consoleLoginWindowSeconds: "900"
+    # "true" only makes sense behind TLS (this chart terminates TLS in the
+    # ingress). Set false when serving over plain HTTP.
+    cookieSecure: true
+    deepseekApiBase: ""
+    deepseekModel: ""
+  resources:
+    requests:
+      cpu: "250m"
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: false
+    minAvailable: 1
+  nodeSelector: {}
+  tolerations: []
+  podAnnotations: {}
+
+# ---------------------------------------------------------------------------
+# migration-job — Helm hook (pre-install, pre-upgrade) running
+# `alembic upgrade head` with the api image.
+# ---------------------------------------------------------------------------
+migration:
+  enabled: true
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  # Clean up successful hook Jobs after completion.
+  ttlSecondsAfterFinished: 300
+  resources:
+    requests:
+      cpu: "100m"
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Ingress (TLS). Routes the console host to web; optionally exposes the raw
+# FastAPI surface under /api/v1 (sensor EVE ingestion, /docs) when exposeApi
+# is true — the api Pods stay otherwise cluster-internal.
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: ""
+  pathType: Prefix
+  exposeApi: false
+  tls:
+    enabled: true
+    # Pre-created TLS Secret name (leave empty to derive one per host).
+    secretName: ""
+    certManager:
+      enabled: false
+      # Name of the ClusterIssuer used for automatic certificates.
+      clusterIssuer: ""
+
+# ---------------------------------------------------------------------------
+# NetworkPolicy — default-deny ingress+egress with explicit allows.
+# Ingress-controller selection below must match the controller actually in
+# use (nginx default: namespace ingress-nginx, pods labeled
+# app.kubernetes.io/name=ingress-nginx).
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  dnsNamespace: kube-system
+  dnsPodLabels:
+    k8s-app: kube-dns
+  ingressController:
+    namespace: ingress-nginx
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx
+  # web -> internet on 443 when the BFF calls an external LLM provider
+  # (NUXT_DEEPSEEK_API_BASE). Completely disable via
+  # allowWebExternalEgressCidrs when you need to restrict it further.
+  allowWebExternalEgress: false
+  webExternalEgressCidrs: []
+
+# ---------------------------------------------------------------------------
+# ServiceAccount + RBAC (least privilege: workloads never talk to the API
+# server, so the Role is intentionally empty — see rbac.yaml).
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  automountServiceAccountToken: false
+
+rbac:
+  create: true

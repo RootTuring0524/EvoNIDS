@@ -1,0 +1,41 @@
+{{- /*
+  Non-secret application configuration. Derived strictly from
+  docker-compose.yml / docker-compose.prod.yml / backend/app/core/config.py
+  (EVONIDS_*), backend/.env.example, project/.env.example and
+  project/nuxt.config.ts (NUXT_*), plus POSTGRES_* used by the postgres image.
+
+  Secrets are NOT here — they live in secret.yaml (or an existingSecret).
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "evonids.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+data:
+  # --- PostgreSQL image variables (postgres StatefulSet) ---
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_HOST: {{ include "evonids.postgresFullname" . | quote }}
+  POSTGRES_PORT: {{ .Values.postgres.service.port | quote }}
+
+  # --- api / migration-job (backend/app/core/config.py, EVONIDS_* prefix) ---
+  EVONIDS_ENVIRONMENT: {{ .Values.api.env.environment | quote }}
+  EVONIDS_AUTO_CREATE_DB: {{ .Values.api.env.autoCreateDb | toString | quote }}
+  EVONIDS_LOG_LEVEL: {{ .Values.api.env.logLevel | quote }}
+  EVONIDS_CORS_ORIGINS: {{ .Values.api.env.corsOrigins | toJson | quote }}
+  EVONIDS_DATASET_ROOT: {{ .Values.api.env.datasetRoot | quote }}
+  EVONIDS_MODEL_ARTIFACT_ROOT: {{ .Values.api.env.modelArtifactRoot | quote }}
+  EVONIDS_TRAINING_CPU_THREADS: {{ .Values.api.env.trainingCpuThreads | quote }}
+
+  # --- web (project/nuxt.config.ts runtimeConfig, NUXT_* prefix) ---
+  NUXT_PUBLIC_API_BASE: /api
+  NUXT_PUBLIC_USE_MOCK_API: {{ .Values.web.env.useMockApi | toString | quote }}
+  NUXT_BACKEND_API_BASE: {{ .Values.web.env.backendApiBase | default (include "evonids.apiBackendBase" .) | quote }}
+  NUXT_CONSOLE_SESSION_HOURS: {{ .Values.web.env.consoleSessionHours | quote }}
+  NUXT_CONSOLE_LOGIN_MAX_ATTEMPTS: {{ .Values.web.env.consoleLoginMaxAttempts | quote }}
+  NUXT_CONSOLE_LOGIN_WINDOW_SECONDS: {{ .Values.web.env.consoleLoginWindowSeconds | quote }}
+  NUXT_CONSOLE_COOKIE_SECURE: {{ .Values.web.env.cookieSecure | toString | quote }}
+  NUXT_DEEPSEEK_API_BASE: {{ .Values.web.env.deepseekApiBase | quote }}
+  NUXT_DEEPSEEK_MODEL: {{ .Values.web.env.deepseekModel | quote }}

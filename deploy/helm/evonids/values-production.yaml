@@ -1,0 +1,125 @@
+# ---------------------------------------------------------------------------
+# EvoNIDS — production example overrides.
+#
+# This file intentionally contains NO secrets: every credential must come from
+# a private `-f secrets.yaml`, `--set secrets.*=...`, or an existing Secret
+# (secrets.existingSecret). Run:
+#
+#   helm upgrade --install evonids deploy/helm/evonids -f deploy/helm/evonids/values-production.yaml \
+#     --namespace evonids --create-namespace --wait --timeout 10m \
+#     --set secrets.adminApiToken='<long-random>' \
+#     --set secrets.sensorIngestToken='<long-random>' \
+#     --set secrets.postgresPassword='<strong-password>' \
+#     --set secrets.consolePassword='<console-login-password>' \
+#     --set image.registry='<your-registry>' \
+#     --set ingress.host='console.example.com'
+#
+# Values below mirror what docker-compose.prod.yml enforces, adapted to a
+# Kubernetes single-cluster footprint.
+# ---------------------------------------------------------------------------
+
+namespace:
+  create: true
+
+# ---------------------------------------------------------------------------
+# Images — NOT published anywhere by default. Build from this repository and
+# push to your registry:
+#   docker compose -f docker-compose.yml build api web
+# then set image.registry / image.tag to the pushed coordinates.
+# ---------------------------------------------------------------------------
+# image:
+#   registry: registry.example.com/evonids
+#   tag: "0.1.0"
+image:
+  pullPolicy: IfNotPresent
+
+api:
+  replicas: 1 # keep 1: in-process training worker + RWO data volume (see values.yaml)
+  env:
+    environment: production
+    corsOrigins:
+      - "https://console.example.com"
+  # Point at a managed/HA PostgreSQL instead of the in-cluster StatefulSet:
+  #   env:
+  #     databaseUrlOverride: postgresql+psycopg://evonids:...@db.internal:5432/evonids
+  autoscaling:
+    # Off on purpose: the training worker is a per-pod in-process loop and the
+    # data PVC is ReadWriteOnce. Revisit together with api.dataVolume
+    # (ReadWriteMany) before enabling.
+    enabled: false
+
+web:
+  replicas: 2
+  env:
+    useMockApi: false
+    cookieSecure: true # true only because ingress terminates TLS below
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+postgres:
+  pdb:
+    # Protects the only DB pod from voluntary disruption. Set enabled:false
+    # (or minAvailable: 0) before draining nodes for maintenance.
+    enabled: true
+    minAvailable: 1
+
+migration:
+  enabled: true
+
+# ---------------------------------------------------------------------------
+# Ingress/TLS. Replace console.example.com with the real console host.
+# TLS Secret: either pre-create `<host>` TLS Secret and set tls.secretName,
+# or enable cert-manager with your ClusterIssuer:
+#   ingress:
+#     tls:
+#       certManager:
+#         enabled: true
+#         clusterIssuer: <your-cluster-issuer>
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: true
+  className: nginx
+  host: console.example.com
+  pathType: Prefix
+  # Route /api/v1 straight to the FastAPI service (raw sensor ingestion,
+  # /docs). Off by default: the console normally reaches the backend through
+  # the Nuxt BFF only.
+  exposeApi: false
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 12m # EVE NDJSON uploads (BFF caps at 10 MiB)
+  tls:
+    enabled: true
+    secretName: ""
+    certManager:
+      enabled: false
+      clusterIssuer: ""
+
+# ---------------------------------------------------------------------------
+# NetworkPolicy: default-deny + explicit allows. The ingress-controller
+# selectors must match the controller actually installed in your cluster.
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  ingressController:
+    namespace: ingress-nginx
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx
+  # Set true only when the BFF calls an external LLM (NUXT_DEEPSEEK_API_BASE
+  # pointing outside the cluster).
+  allowWebExternalEgress: false
+
+# ---------------------------------------------------------------------------
+# Least-privilege identity: pods never call the Kubernetes API.
+# ---------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+
+rbac:
+  create: true

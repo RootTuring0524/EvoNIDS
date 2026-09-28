@@ -1,0 +1,48 @@
+{{- /*
+  helm test: connectivity check against the real web + api endpoints.
+  Uses the api image (python3/urllib) so no extra image is pulled.
+  /api/v1/health answers HTTP 200 even while degraded (status field in the
+  body), so this is a connectivity/serving check, not a health gate.
+*/ -}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "evonids.fullname" . }}-connection-test
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  restartPolicy: Never
+  securityContext:
+    {{- toYaml .Values.podSecurityContext | nindent 4 }}
+  containers:
+    - name: connection-test
+      image: {{ include "evonids.apiImage" . }}
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      command:
+        - python
+        - -c
+        - |
+          import json
+          import urllib.request
+
+          targets = [
+              "http://{{ include "evonids.webFullname" . }}:{{ .Values.web.service.port }}/api/auth/status",
+              "http://{{ include "evonids.apiFullname" . }}:{{ .Values.api.service.port }}/api/v1/health",
+          ]
+          for url in targets:
+              with urllib.request.urlopen(url, timeout=15) as resp:
+                  assert resp.status == 200, (url, resp.status)
+                  json.loads(resp.read().decode("utf-8"))
+              print("OK", url)
+          print("evonids connectivity test passed")
+      securityContext:
+        {{- toYaml .Values.containerSecurityContext | nindent 8 }}
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: tmp
+      emptyDir: {}

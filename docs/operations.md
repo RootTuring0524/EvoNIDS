@@ -28,10 +28,28 @@ Console login is optional. Set a password to enable it:
 ```dotenv
 NUXT_CONSOLE_PASSWORD=use-a-long-random-password
 NUXT_CONSOLE_SESSION_HOURS=24
+# optional hardening:
+NUXT_CONSOLE_LOGIN_MAX_ATTEMPTS=5      # failed attempts before lockout (per IP)
+NUXT_CONSOLE_LOGIN_WINDOW_SECONDS=900  # sliding window length / lockout duration
+NUXT_CONSOLE_COOKIE_SECURE=true        # set only when served over HTTPS
+NUXT_BACKEND_ADMIN_TOKEN=...           # enables forwarding login events to the audit log
 ```
 
 - When `NUXT_CONSOLE_PASSWORD` is set, every console page and `/api/**` BFF route requires login (the login page itself is the only exception): `POST /api/auth/login` exchanges the password for a signed HttpOnly session cookie, `POST /api/auth/logout` clears it, and `GET /api/auth/status` returns `{required, authenticated}`.
 - `NUXT_CONSOLE_SESSION_HOURS` sets the session lifetime in hours and defaults to 24.
+- **Brute-force protection**: failed login attempts are counted per remote address in a
+  sliding window (`NUXT_CONSOLE_LOGIN_MAX_ATTEMPTS` per
+  `NUXT_CONSOLE_LOGIN_WINDOW_SECONDS`, defaults 5 per 15 minutes); exceeding the limit
+  locks that address for one window and answers HTTP 429. The limiter is process-local
+  (single Nuxt instance) and intentionally does **not** trust `x-forwarded-for`, so behind
+  a reverse proxy the limit aggregates per proxy IP.
+- **Console authentication audit**: login success, failure and lockout events, and logout,
+  are forwarded best-effort to the backend audit stream
+  (`POST /api/v1/audit/console`, actor `console`, object type `console_session`).
+  Forwarding requires `NUXT_BACKEND_ADMIN_TOKEN`; without it login still works but console
+  auth events are not persisted.
+- Set `NUXT_CONSOLE_COOKIE_SECURE=true` only when the console is served over HTTPS so the
+  session cookie carries the `Secure` attribute.
 - Leave `NUXT_CONSOLE_PASSWORD` empty to keep the console open — the intended mode for local development and demos. This is a minimal gate, not a replacement for a TLS-terminating reverse proxy in real deployments.
 - Forgot the password? There is no recovery flow: update `NUXT_CONSOLE_PASSWORD` in the uncommitted `.env` and restart the console.
 

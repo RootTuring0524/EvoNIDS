@@ -1,0 +1,30 @@
+{{- /*
+  Persistent volume claim for the api shared data: registered dataset files
+  (EVONIDS_DATASET_ROOT) and trained model artifacts
+  (EVONIDS_MODEL_ARTIFACT_ROOT). Compose keeps these in ./backend/datasets
+  (host read-only) and the evonids-models named volume; this claim replaces
+  both in-cluster.
+
+  NOTE: scale api.replicas above 1 only when this volume is ReadWriteMany
+  (override api.dataVolume.accessModes) or the datasets/models live elsewhere
+  (existingClaim pointing at a RWX claim, object storage backed driver, …).
+  Rendered only when api.dataVolume.enabled and no existingClaim is set.
+*/ -}}
+{{- if and .Values.api.dataVolume.enabled (not .Values.api.dataVolume.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "evonids.dataVolumeFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.api.dataVolume.accessModes | nindent 4 }}
+  {{- with .Values.api.dataVolume.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.api.dataVolume.size | quote }}
+{{- end }}

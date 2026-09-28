@@ -1,0 +1,54 @@
+{{- /*
+  Ingress with TLS. The console host routes to web; optionally /api/v1 is
+  routed straight to the FastAPI service (sensor EVE ingestion, /docs) when
+  ingress.exposeApi is true. No path rewriting happens, so FastAPI keeps its
+  /api/v1 prefix.
+*/ -}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "evonids.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.tls.certManager.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.ingress.tls.certManager.clusterIssuer | quote }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      {{- if .Values.ingress.tls.secretName }}
+      secretName: {{ .Values.ingress.tls.secretName | quote }}
+      {{- else }}
+      secretName: {{ printf "%s-tls" (include "evonids.fullname" .) | quote }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "evonids.webFullname" . }}
+                port:
+                  name: http
+          {{- if .Values.ingress.exposeApi }}
+          - path: /api/v1
+            pathType: {{ .Values.ingress.pathType }}
+            backend:
+              service:
+                name: {{ include "evonids.apiFullname" . }}
+                port:
+                  name: http
+          {{- end }}
+{{- end }}

@@ -42,6 +42,20 @@ We handle reports on a best-effort basis and aim to acknowledge new reports with
 
 Console authentication scope: the optional console password protects only the Nuxt console pages and their server-side BFF routes (`/api/**`). It does **not** protect the FastAPI service — a client connecting directly to a FastAPI endpoint bypasses the console login entirely and remains subject to the admin/sensor token enforcement (`EVONIDS_ADMIN_API_TOKEN` / `EVONIDS_SENSOR_INGEST_TOKEN`, mandatory outside development).
 
+Console login hardening: failed console logins are rate-limited per remote address
+(in-memory sliding window, `NUXT_CONSOLE_LOGIN_MAX_ATTEMPTS` /
+`NUXT_CONSOLE_LOGIN_WINDOW_SECONDS`, defaults 5 per 15 minutes, HTTP 429 on lockout), and
+login/logout events are forwarded best-effort to the backend audit stream
+(`POST /api/v1/audit/console`) when `NUXT_BACKEND_ADMIN_TOKEN` is configured. The rate
+limiter is process-local; multi-instance deployments must move it to a shared store. The
+session cookie supports the `Secure` attribute via `NUXT_CONSOLE_COOKIE_SECURE=true`.
+
+Machine API keys: the backend additionally supports scoped API keys (`admin` / `sensor` /
+`analyst`) stored as salted SHA-256 digests and managed through
+`POST /api/v1/admin/api-keys` (see ADR 0003). Environment tokens remain the supported
+bootstrap path. A key's raw secret is shown once at creation; leaking it requires revoking
+the key through `POST /api/v1/admin/api-keys/{id}/revoke`.
+
 These limitations are documented in the READMEs; reports that only restate them will not be treated as vulnerabilities.
 
 ## Secrets hygiene

@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "EvoNIDS Helm chart values",
+  "additionalProperties": true,
+  "required": [
+    "image",
+    "secrets",
+    "postgres",
+    "api",
+    "web",
+    "migration",
+    "ingress",
+    "networkPolicy"
+  ],
+  "properties": {
+    "fullnameOverride": { "type": "string" },
+    "image": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["registry", "pullPolicy", "tag", "apiRepository", "webRepository", "postgresRepository", "postgresTag"],
+      "properties": {
+        "registry": { "type": "string" },
+        "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "tag": { "type": "string" },
+        "apiRepository": { "type": "string" },
+        "webRepository": { "type": "string" },
+        "postgresRepository": { "type": "string" },
+        "postgresTag": { "type": "string" },
+        "pullSecrets": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "namespace": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" }
+      }
+    },
+    "podSecurityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "runAsNonRoot": { "type": "boolean" },
+        "runAsUser": { "type": "integer" },
+        "runAsGroup": { "type": "integer" },
+        "fsGroup": { "type": "integer" }
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "allowPrivilegeEscalation": { "type": "boolean" },
+        "readOnlyRootFilesystem": { "type": "boolean" },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "drop": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "seccompProfile": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string" }
+          }
+        }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "create": { "type": "boolean" },
+        "existingSecret": { "type": "string" },
+        "adminApiToken": { "type": "string" },
+        "sensorIngestToken": { "type": "string" },
+        "analystApiToken": { "type": "string" },
+        "postgresPassword": { "type": "string" },
+        "consolePassword": { "type": "string" },
+        "deepseekApiKey": { "type": "string" }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["replicas", "user", "database", "persistence"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 1 },
+        "user": { "type": "string" },
+        "database": { "type": "string" },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "annotations": { "type": "object" }
+          }
+        },
+        "persistence": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "storageClass": { "type": "string" },
+            "size": { "type": "string" },
+            "existingClaim": { "type": "string" }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" },
+        "pdb": { "$ref": "#/definitions/pdb" },
+        "nodeSelector": { "type": "object" },
+        "tolerations": { "type": "array" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "api": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["replicas", "env", "resources", "autoscaling"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "annotations": { "type": "object" }
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "environment": { "type": "string" },
+            "corsOrigins": { "type": "array", "items": { "type": "string" } },
+            "autoCreateDb": { "type": "boolean" },
+            "logLevel": { "type": "string" },
+            "trainingCpuThreads": { "type": "string" },
+            "datasetRoot": { "type": "string" },
+            "modelArtifactRoot": { "type": "string" },
+            "databaseUrlOverride": { "type": "string" }
+          }
+        },
+        "dataVolume": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "accessModes": { "type": "array", "items": { "type": "string" } },
+            "storageClass": { "type": "string" },
+            "size": { "type": "string" },
+            "existingClaim": { "type": "string" }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "pdb": { "$ref": "#/definitions/pdb" },
+        "nodeSelector": { "type": "object" },
+        "tolerations": { "type": "array" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "web": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["replicas", "env", "resources", "autoscaling"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 },
+        "service": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "type": { "type": "string" },
+            "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+            "annotations": { "type": "object" }
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "backendApiBase": { "type": "string" },
+            "useMockApi": { "type": "boolean" },
+            "consoleSessionHours": { "type": "string" },
+            "consoleLoginMaxAttempts": { "type": "string" },
+            "consoleLoginWindowSeconds": { "type": "string" },
+            "cookieSecure": { "type": "boolean" },
+            "deepseekApiBase": { "type": "string" },
+            "deepseekModel": { "type": "string" }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" },
+        "autoscaling": { "$ref": "#/definitions/autoscaling" },
+        "pdb": { "$ref": "#/definitions/pdb" },
+        "nodeSelector": { "type": "object" },
+        "tolerations": { "type": "array" },
+        "podAnnotations": { "type": "object" }
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "backoffLimit": { "type": "integer", "minimum": 0 },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "ttlSecondsAfterFinished": { "type": "integer", "minimum": 0 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "host": { "type": "string" },
+        "pathType": { "type": "string", "enum": ["Prefix", "Exact", "ImplementationSpecific"] },
+        "exposeApi": { "type": "boolean" },
+        "tls": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" },
+            "certManager": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "clusterIssuer": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "dnsNamespace": { "type": "string" },
+        "dnsPodLabels": { "type": "object" },
+        "ingressController": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "namespace": { "type": "string" },
+            "podLabels": { "type": "object" }
+          }
+        },
+        "allowWebExternalEgress": { "type": "boolean" },
+        "webExternalEgressCidrs": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "create": { "type": "boolean" },
+        "name": { "type": "string" },
+        "annotations": { "type": "object" },
+        "automountServiceAccountToken": { "type": "boolean" }
+      }
+    },
+    "rbac": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "create": { "type": "boolean" }
+      }
+    }
+  },
+  "definitions": {
+    "resources": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "cpu": { "type": "string" },
+            "memory": { "type": "string" }
+          }
+        }
+      }
+    },
+    "autoscaling": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "pdb": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

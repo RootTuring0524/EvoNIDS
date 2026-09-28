@@ -1,0 +1,33 @@
+{{- /*
+  RBAC (least privilege). The api/web/postgres/migration workloads never call
+  the Kubernetes API server, so the chart grants the shared ServiceAccount no
+  permissions at all (empty rules). If a future component needs API access
+  (e.g. leader election, snapshot tooling), extend the Role deliberately —
+  nothing is granted by default. No ClusterRole is ever created.
+*/ -}}
+{{- if and .Values.rbac.create .Values.serviceAccount.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "evonids.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "evonids.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "evonids.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: {{ include "evonids.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

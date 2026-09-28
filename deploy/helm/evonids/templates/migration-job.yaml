@@ -1,0 +1,93 @@
+{{- /*
+  migration-job — Helm hook Job that runs `alembic upgrade head` from /app
+  with the api image before install and before every upgrade. alembic reads
+  EVONIDS_DATABASE_URL through backend/app/core/config.py (alembic/env.py
+  overrides sqlalchemy.url from the settings).
+
+  IMPORTANT: hooks run BEFORE the release's own ConfigMap/Secret are created,
+  so this Job is self-contained: env values are rendered inline from values.
+  The password comes from the Secret via secretKeyRef only when an
+  out-of-band existingSecret is used (it already exists at install time);
+  otherwise it is rendered inline (values-driven, never hardcoded in files).
+
+  Note: the api image itself also runs `alembic upgrade head` at boot
+  (backend/Dockerfile CMD). The hook makes migrations a serialized, explicit
+  step; the api boot migration is then an idempotent no-op.
+*/ -}}
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "evonids.migrationFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "migration") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+    checksum/config: {{ include "evonids.configChecksum" . }}
+    checksum/secret: {{ include "evonids.secretChecksum" . }}
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "evonids.componentLabels" (dict "ctx" $ "component" "migration") | nindent 8 }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      restartPolicy: Never
+      serviceAccountName: {{ include "evonids.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migration
+          image: {{ include "evonids.apiImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: EVONIDS_ENVIRONMENT
+              value: {{ .Values.api.env.environment | default "production" | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: POSTGRES_HOST
+              value: {{ include "evonids.postgresFullname" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.postgres.service.port | quote }}
+            - name: POSTGRES_PASSWORD
+              {{- if .Values.secrets.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: postgres-password
+              {{- else }}
+              value: {{ .Values.secrets.postgresPassword | quote }}
+              {{- end }}
+            - name: EVONIDS_DATABASE_URL
+              {{- if .Values.api.env.databaseUrlOverride }}
+              value: {{ .Values.api.env.databaseUrlOverride | quote }}
+              {{- else }}
+              # Order matters: POSTGRES_PASSWORD precedes this entry so the
+              # $(...) expansion below resolves it.
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+              {{- end }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+{{- end }}

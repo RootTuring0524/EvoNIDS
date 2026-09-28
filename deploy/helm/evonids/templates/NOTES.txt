@@ -1,0 +1,58 @@
+{{- /*
+  NOTES.txt — shown after helm install/upgrade.
+*/ -}}
+EvoNIDS ({{ .Chart.Name }} v{{ .Chart.Version }}) has been deployed to namespace "{{ .Release.Namespace }}".
+
+Key resources:
+  api        Deployment   {{ include "evonids.apiFullname" . }}        (FastAPI/uvicorn :8000)
+  web        Deployment   {{ include "evonids.webFullname" . }}        (Nuxt 4 console/BFF :3000)
+  postgres   StatefulSet  {{ include "evonids.postgresFullname" . }}   (pgvector/pgvector:pg17, single primary)
+  migration  Job (hook)   {{ include "evonids.migrationFullname" . }}  (alembic upgrade head)
+  secret     Secret       {{ include "evonids.secretName" . }}
+
+1) Credentials — the backend REFUSES to boot in production without tokens.
+   If you installed without providing them, either re-run with:
+     helm upgrade --install evonids deploy/helm/evonids -n {{ .Release.Namespace }} \
+       --set secrets.adminApiToken='<long-random>' \
+       --set secrets.sensorIngestToken='<long-random>' \
+       --set secrets.postgresPassword='<strong-password>' \
+       --set secrets.consolePassword='<console-password>'
+   or create your own Secret and re-run with --set secrets.existingSecret=<name>
+   (see templates/secret.yaml for the expected canonical keys). Changing an
+   existing Secret later requires `kubectl rollout restart` because the pod
+   checksum annotation cannot observe external Secret edits.
+
+2) Images are not published: build from this repository and set image.*:
+     docker compose -f docker-compose.yml build api web
+     docker tag <compose-image> <registry>/evonids/api:0.1.0   # + web image
+     helm upgrade --install ... --set image.registry=<registry> \
+       --set image.apiRepository=evonids/api --set image.webRepository=evonids/web
+
+3) Verify:
+     helm test evonids -n {{ .Release.Namespace }}
+     kubectl -n {{ .Release.Namespace }} get pods
+     kubectl -n {{ .Release.Namespace }} get pvc
+     # console:
+     #  helm install -n ... --set ingress.enabled=true --set ingress.host=console.example.com
+     #  then https://console.example.com/overview
+
+4) Data:
+   - PostgreSQL data lives on PVC {{ include "evonids.postgresPvcFullname" . }}
+   - Dataset files + trained model artifacts live on PVC {{ include "evonids.dataVolumeFullname" . }}
+     (seed datasets by copying CSVs into that volume, then register them via the
+     API/console: POST /api/v1/datasets expects relative paths inside the root).
+   - Back up regularly with scripts/backup/ (see scripts/backup/README.md) or
+     volume snapshots; run a drill from docs/runbooks/backup-restore-drill.md.
+
+5) Operational notes:
+   - Keep api replicas at 1 unless you understand the in-process training
+     worker constraint and switch the data volume to ReadWriteMany
+     (values.yaml -> api.autoscaling/api.dataVolume).
+   - postgres PDB (minAvailable 1) blocks voluntary eviction of the only
+     database pod — disable it during node maintenance
+     (--set postgres.pdb.enabled=false).
+
+{{- if not .Values.ingress.enabled }}
+6) Ingress is disabled. Enable it with ingress.enabled=true, ingress.host=...
+   and TLS via ingress.tls (cert-manager issuer or a pre-created Secret).
+{{- end }}

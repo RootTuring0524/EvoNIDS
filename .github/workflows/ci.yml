@@ -75,6 +75,45 @@ jobs:
       - name: Run tests
         # pytest config lives in backend/pyproject.toml: testpaths = ["tests"], pythonpath = ["."].
         run: pytest -q
+      - name: Type check (mypy)
+        # First-party code must stay clean; untyped data-science packages are
+        # ignored via [[tool.mypy.overrides]] in backend/pyproject.toml.
+        run: mypy app
+      - name: Migration cycle check
+        # A fresh SQLite database must survive upgrade -> downgrade base -> upgrade,
+        # and must land on the head revision reported by Alembic itself (never a
+        # hardcoded revision string that silently rots).
+        env:
+          EVONIDS_DATABASE_URL: sqlite:///./ci-migration-check.db
+          EVONIDS_AUTO_CREATE_DB: "false"
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+          HEAD_REVISION=$(alembic heads | head -n 1 | awk '{print $1}')
+          python -c "import sqlite3,sys; c = sqlite3.connect('ci-migration-check.db'); v = c.execute('SELECT version_num FROM alembic_version').fetchone()[0]; assert v == sys.argv[1], (v, sys.argv[1]); print('migration head OK:', v)" "$HEAD_REVISION"
+          rm -f ci-migration-check.db
+      - name: Repository hygiene scan
+        # No machine-specific absolute paths and no obvious credentials may be
+        # committed. Archived training logs under docs/evidence/ are historical
+        # evidence and keep their original host paths; the workflow file itself is
+        # excluded because it contains these patterns as data.
+        run: |
+          if git grep -nE 'D:\\IDS System|C:\\Users\\' -- ':!*.lock' ':!docs/learning-notes.zh.md' ':!docs/evidence/**' ':!.github/workflows/ci.yml'; then
+            echo "::error::machine-specific path found in the repository"
+            exit 1
+          fi
+          if git grep -nE 'BEGIN (RSA|OPENSSH) PRIVATE KEY' -- ':!backend/tests/**'; then
+            echo "::error::private key material found in the repository"
+            exit 1
+          fi
+          echo "hygiene scan OK"
+      - name: OpenAPI snapshot drift check
+        # backend/scripts/update_openapi_snapshot.py must reproduce the
+        # committed tests/fixtures/openapi.json byte-for-byte.
+        run: |
+          python scripts/update_openapi_snapshot.py
+          git diff --exit-code -- tests/fixtures/openapi.json
 
   frontend:
     name: Frontend (lint + vitest + build)

@@ -1,0 +1,183 @@
+{{- /*
+  api Deployment — FastAPI/uvicorn (:8000).
+  Env names mirror docker-compose.yml + backend/app/core/config.py.
+  Probes are wired to the real endpoints:
+    liveness/startup  -> GET /api/v1/health
+    readiness         -> GET /api/v1/readiness
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "evonids.apiFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "api") | nindent 4 }}
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "evonids.componentLabels" (dict "ctx" $ "component" "api") | nindent 8 }}
+      annotations:
+        # Config/Secret changes roll the Pods.
+        checksum/config: {{ include "evonids.configChecksum" . }}
+        checksum/secret: {{ include "evonids.secretChecksum" . }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "evonids.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.api.dataVolume.enabled }}
+      initContainers:
+        - name: init-data-dirs
+          image: {{ include "evonids.apiImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              mkdir -p "{{ .Values.api.env.datasetRoot }}"
+              "{{ .Values.api.env.modelArtifactRoot }}" &&
+              echo "EvoNIDS data dirs ready"
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/evonids
+            - name: tmp
+              mountPath: /tmp
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "evonids.apiImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "evonids.configName" . }}
+          env:
+            # Order matters: POSTGRES_* must precede EVONIDS_DATABASE_URL so
+            # the $(...) expansion below can resolve them (they are defined
+            # explicitly — including the password — rather than only via
+            # envFrom, so the expansion is deterministic).
+            - name: POSTGRES_USER
+              value: {{ .Values.postgres.user | quote }}
+            - name: POSTGRES_DB
+              value: {{ .Values.postgres.database | quote }}
+            - name: POSTGRES_HOST
+              value: {{ include "evonids.postgresFullname" . | quote }}
+            - name: POSTGRES_PORT
+              value: {{ .Values.postgres.service.port | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: postgres-password
+            - name: EVONIDS_DATABASE_URL
+              {{- if .Values.api.env.databaseUrlOverride }}
+              value: {{ .Values.api.env.databaseUrlOverride | quote }}
+              {{- else }}
+              value: "postgresql+psycopg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
+              {{- end }}
+            - name: EVONIDS_ADMIN_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: admin-token
+            - name: EVONIDS_SENSOR_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: sensor-token
+            # Optional legacy analyst scope (backend/.env.example).
+            - name: EVONIDS_ANALYST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: analyst-token
+                  optional: true
+          startupProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/v1/readiness
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.api.dataVolume.enabled }}
+            - name: data
+              mountPath: /data/evonids
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.api.dataVolume.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            {{- if .Values.api.dataVolume.existingClaim }}
+            claimName: {{ .Values.api.dataVolume.existingClaim }}
+            {{- else }}
+            claimName: {{ include "evonids.dataVolumeFullname" . }}
+            {{- end }}
+        {{- end }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ include "evonids.name" . }}
+                    app.kubernetes.io/instance: {{ .Release.Name }}
+                    app.kubernetes.io/component: api
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "evonids.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: api

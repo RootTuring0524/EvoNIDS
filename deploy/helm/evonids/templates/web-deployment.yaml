@@ -1,0 +1,136 @@
+{{- /*
+  web Deployment — Nuxt 4 console/BFF (node .output/server/index.mjs, :3000).
+  Env names mirror project/.env.example + project/nuxt.config.ts.
+  Probes are wired to the real BFF endpoint GET /api/auth/status
+  (the same endpoint the docker-compose healthcheck uses).
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "evonids.webFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "web") | nindent 4 }}
+spec:
+  replicas: {{ .Values.web.replicas }}
+  selector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "evonids.componentLabels" (dict "ctx" $ "component" "web") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "evonids.configChecksum" . }}
+        checksum/secret: {{ include "evonids.secretChecksum" . }}
+        {{- with .Values.web.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
+      serviceAccountName: {{ include "evonids.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: web
+          image: {{ include "evonids.webImage" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "evonids.configName" . }}
+          env:
+            # Tokens must equal the backend ones (docker-compose.prod.yml wires
+            # NUXT_BACKEND_ADMIN_TOKEN/NUXT_SENSOR_INGEST_TOKEN from the same
+            # EVONIDS_* values).
+            - name: NUXT_BACKEND_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: admin-token
+            - name: NUXT_SENSOR_INGEST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: sensor-token
+            - name: NUXT_CONSOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: console-password
+                  optional: true
+            # Server-only DeepSeek credentials (project/server/services/deepseek.ts).
+            - name: NUXT_DEEPSEEK_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "evonids.secretName" . }}
+                  key: deepseek-api-key
+                  optional: true
+          startupProbe:
+            httpGet:
+              path: /api/auth/status
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 40
+          readinessProbe:
+            httpGet:
+              path: /api/auth/status
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/auth/status
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.web.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            # Node/Nitro may need a writable scratch dir under a read-only root.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.web.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.web.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ include "evonids.name" . }}
+                    app.kubernetes.io/instance: {{ .Release.Name }}
+                    app.kubernetes.io/component: web
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "evonids.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: web

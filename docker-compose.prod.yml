@@ -1,0 +1,44 @@
+# Production single-host overlay for EvoNIDS.
+#
+# Usage:
+#   cp .env.example .env            # fill every token/password
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Differences from the development compose file:
+#   * the API runs with EVONIDS_ENVIRONMENT=production (the backend refuses to
+#     boot without admin/sensor credentials and without PostgreSQL);
+#   * every credential interpolation is REQUIRED (`${VAR:?...}` fails fast when
+#     the variable is missing instead of silently defaulting);
+#   * the console session cookie is marked Secure via NUXT_CONSOLE_COOKIE_SECURE
+#     (set "true" only when the console is actually served over HTTPS);
+#   * healthchecks, restart policies and log rotation come from the base file.
+#
+# TLS termination is intentionally left to a reverse proxy in front of the
+# web service (the compose file binds 127.0.0.1 only). See docs/deployment.md.
+
+name: evonids-prod
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set it in .env)}
+
+  api:
+    environment:
+      EVONIDS_ENVIRONMENT: production
+      EVONIDS_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-evonids}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required (set it in .env)}@postgres:5432/${POSTGRES_DB:-evonids}
+      EVONIDS_CORS_ORIGINS: ${EVONIDS_CORS_ORIGINS:-["http://localhost:3000"]}
+      EVONIDS_ADMIN_API_TOKEN: ${EVONIDS_ADMIN_API_TOKEN:?EVONIDS_ADMIN_API_TOKEN is required (set it in .env)}
+      EVONIDS_SENSOR_INGEST_TOKEN: ${EVONIDS_SENSOR_INGEST_TOKEN:?EVONIDS_SENSOR_INGEST_TOKEN is required (set it in .env)}
+      EVONIDS_ANALYST_API_TOKEN: ${EVONIDS_ANALYST_API_TOKEN:-}
+      EVONIDS_TRAINING_CPU_THREADS: ${EVONIDS_TRAINING_CPU_THREADS:-0}
+
+  web:
+    environment:
+      NUXT_BACKEND_ADMIN_TOKEN: ${EVONIDS_ADMIN_API_TOKEN:?EVONIDS_ADMIN_API_TOKEN is required (set it in .env)}
+      NUXT_SENSOR_INGEST_TOKEN: ${EVONIDS_SENSOR_INGEST_TOKEN:?EVONIDS_SENSOR_INGEST_TOKEN is required (set it in .env)}
+      # Strongly recommended in production: protect the console behind a login.
+      NUXT_CONSOLE_PASSWORD: ${NUXT_CONSOLE_PASSWORD:?NUXT_CONSOLE_PASSWORD is required for the console login}
+      NUXT_CONSOLE_SESSION_HOURS: ${NUXT_CONSOLE_SESSION_HOURS:-24}
+      # Keep "true" only when a TLS-terminating proxy serves the console.
+      NUXT_CONSOLE_COOKIE_SECURE: ${NUXT_CONSOLE_COOKIE_SECURE:-false}

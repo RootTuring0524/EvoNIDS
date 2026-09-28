@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "evonids.postgresFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+  {{- with .Values.postgres.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  # Serves as the governing service for the StatefulSet as well as the
+  # ClusterIP endpoint used inside the api DSN / POSTGRES_HOST.
+  type: {{ .Values.postgres.service.type }}
+  clusterIP: {{ if eq .Values.postgres.service.type "ClusterIP" }}None{{ else }}{{ end }}
+  selector:
+    {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+  ports:
+    - name: postgresql
+      port: {{ .Values.postgres.service.port }}
+      targetPort: postgresql
+      protocol: TCP

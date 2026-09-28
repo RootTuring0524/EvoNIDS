@@ -1,0 +1,195 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- /*
+  NetworkPolicies: default-deny (ingress+egress) with explicit allows.
+  Intended traffic:
+    ingress controller -> web:3000
+    web -> api:8000 (BFF server-side calls)
+    api <- web; api -> postgres:5432
+    migration job -> postgres:5432
+    everyone -> kube-dns:53 (egress)
+  When ingress.exposeApi is true, the ingress controller may also reach
+  api:8000 directly (/api/v1). LLM calls from web leave the cluster only when
+  networkPolicy.allowWebExternalEgress is true (TCP 443).
+*/ -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.fullname" . }}-default-deny
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.fullname" . }}-allow-dns
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.dnsNamespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dnsPodLabels | nindent 14 }}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.webFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "web") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "web") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Console traffic arrives from the ingress controller only.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressController.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressController.podLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.web.service.port }}
+  egress:
+    # BFF -> FastAPI (fetchBackend in project/server/utils/backend.ts).
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "api") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+    {{- if .Values.networkPolicy.allowWebExternalEgress }}
+    # Outbound LLM provider calls (NUXT_DEEPSEEK_API_BASE) over HTTPS only.
+    - to:
+        {{- if .Values.networkPolicy.webExternalEgressCidrs }}
+        {{- range .Values.networkPolicy.webExternalEgressCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+        {{- end }}
+        {{- else }}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+    {{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.apiFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "api") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "api") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "web") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+    {{- if .Values.ingress.exposeApi }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.ingressController.namespace }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.ingressController.podLabels | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.api.service.port }}
+    {{- end }}
+  egress:
+    # api -> PostgreSQL.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "postgres") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.postgresFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "postgres") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "postgres") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "migration") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "evonids.migrationFullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "evonids.componentLabels" (dict "ctx" $ "component" "migration") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "migration") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    # alembic -> PostgreSQL.
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "evonids.componentSelectorLabels" (dict "ctx" $ "component" "postgres") | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.postgres.service.port }}
+{{- end }}
