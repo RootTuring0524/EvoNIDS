@@ -35,3 +35,4 @@ EvoNIDS-github/
 !docs/evidence/training-logs/*.log
 # backend/model-artifacts/cicids2017-latest-summary.json and the dataset
 # *.metadata.json records are force-added evidence for MODEL_CARD / DATA_CARD.
+*.db.pre-migration-backup

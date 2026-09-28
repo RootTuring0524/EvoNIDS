@@ -18,7 +18,17 @@ os.environ["EVONIDS_TRAINING_CPU_THREADS"] = "1"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
+
+# Effective (already frozen) settings: another module may have been imported
+# first, so the environment writes above are only a best effort. Using the
+# configured roots keeps this module correct in any collection order.
+_effective = get_settings()
+dataset_root = Path(_effective.dataset_root)
+dataset_root.mkdir(parents=True, exist_ok=True)
+artifact_root = Path(_effective.model_artifact_root)
+artifact_root.mkdir(parents=True, exist_ok=True)
 
 
 EVE_SAMPLE = "\n".join(
@@ -48,7 +58,9 @@ def test_health_ingestion_and_read_contracts():
             headers={"content-type": "application/x-ndjson"},
         )
         assert imported.status_code == 200
-        assert imported.json() == {
+        payload = imported.json()
+        detection = payload.pop("detection")
+        assert payload == {
             "sensorId": "lab-core-01",
             "acceptedEvents": 2,
             "createdFlows": 1,
@@ -62,6 +74,11 @@ def test_health_ingestion_and_read_contracts():
                 }
             ],
         }
+        # Online detection runs in shadow mode by default: it records signals and
+        # a fusion assessment, and must not create or modify any alert.
+        assert detection["mode"] == "shadow"
+        assert detection["flowsScored"] == 1
+        assert detection["alertsCreated"] == 0
 
         sensors = client.get("/api/v1/sensors")
         assert sensors.status_code == 200
@@ -238,13 +255,19 @@ def test_health_ingestion_and_read_contracts():
 
         retrieval = client.get("/api/v1/rag?query=Port%20Scan%20TCP%20T1046&topK=5")
         assert retrieval.status_code == 200
-        assert retrieval.json()["mode"] == "keyword_fallback"
-        assert retrieval.json()["retrieval"]["vectorCandidates"] == 0
+        # Hybrid retrieval is the real path now: BM25 plus the configured
+        # embedding provider (hashing by default), so vector candidates are
+        # actually produced instead of the previous keyword-only fallback.
+        assert retrieval.json()["mode"] == "hybrid_bm25_vector"
+        assert retrieval.json()["retrieval"]["vectorCandidates"] > 0
         assert retrieval.json()["retrieval"]["providedToAgent"] == 1
         assert {item["id"] for item in retrieval.json()["items"]} == {
             "TEST-EV-T1046",
             "TEST-EV-BLOCKED",
         }
+        allowed_item = next(item for item in retrieval.json()["items"] if item["id"] == "TEST-EV-T1046")
+        assert allowed_item["vectorScore"] > 0
+        assert allowed_item["keywordScore"] > 0
 
         detail = client.get(f"/api/v1/alerts/{alert_id}")
         assert detail.status_code == 200

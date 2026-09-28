@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Literal
 
 import uuid
 from datetime import datetime, timezone
@@ -15,7 +16,9 @@ ONLINE_SECONDS = 120
 DEGRADED_SECONDS = 900
 
 
-def _derived_state(sensor: Sensor, *, now: datetime) -> tuple[str, str]:
+def derived_state(sensor: Sensor, *, now: datetime) -> tuple[
+    Literal["online", "degraded", "offline", "maintenance"], str
+]:
     if sensor.state == "maintenance":
         return "maintenance", "已由管理员置于维护模式"
     if sensor.last_seen_at is None:
@@ -32,7 +35,7 @@ def _derived_state(sensor: Sensor, *, now: datetime) -> tuple[str, str]:
 
 
 def _sensor_read(db: Session, sensor: Sensor, *, now: datetime) -> SensorRead:
-    state, reason = _derived_state(sensor, now=now)
+    state, reason = derived_state(sensor, now=now)
     flow_count = db.scalar(select(func.count()).select_from(Flow).where(Flow.sensor_id == sensor.id)) or 0
     alert_count = db.scalar(select(func.count()).select_from(Alert).where(Alert.sensor == sensor.id)) or 0
     critical_alerts = db.scalar(
@@ -54,6 +57,13 @@ def _sensor_read(db: Session, sensor: Sensor, *, now: datetime) -> SensorRead:
         rejected_events=int(metadata.get("lifetimeRejectedEvents", 0)),
         ingest_source=str(metadata.get("source", "unknown")),
         last_error=str(metadata["lastError"]) if metadata.get("lastError") else None,
+        agent_version=sensor.agent_version,
+        last_heartbeat_at=sensor.last_heartbeat_at,
+        clock_skew_seconds=sensor.clock_skew_seconds,
+        spool_depth=sensor.spool_depth,
+        dropped_events=sensor.dropped_events,
+        expected_interval_seconds=sensor.expected_interval_seconds,
+        capabilities=list(sensor.capabilities or []),
         created_at=sensor.created_at,
         updated_at=sensor.updated_at,
     )
@@ -95,7 +105,17 @@ def record_heartbeat(db: Session, sensor_id: str, payload: SensorHeartbeat) -> S
         sensor.location = payload.location
     if payload.version is not None:
         sensor.version = payload.version
+    if payload.agent_version is not None:
+        sensor.agent_version = payload.agent_version
+    if payload.capabilities:
+        sensor.capabilities = list(dict.fromkeys(payload.capabilities))
+    sensor.spool_depth = payload.spool_depth
+    sensor.dropped_events = payload.dropped_events
+    sensor.expected_interval_seconds = payload.expected_interval_seconds
+    if payload.clock_skew_seconds is not None:
+        sensor.clock_skew_seconds = round(float(payload.clock_skew_seconds), 3)
     sensor.last_seen_at = utc_now()
+    sensor.last_heartbeat_at = sensor.last_seen_at
     if sensor.state != "maintenance":
         sensor.state = "online"
     sensor.metadata_json = {**(sensor.metadata_json or {}), **payload.metadata_json, "source": "heartbeat"}
@@ -110,6 +130,7 @@ def update_sensor(
     payload: SensorUpdate,
     *,
     request_id: str | None,
+    actor: str | None = None,
 ) -> SensorRead:
     before = {"name": sensor.name, "location": sensor.location, "state": sensor.state}
     if payload.name is not None:
@@ -123,7 +144,7 @@ def update_sensor(
         AuditEvent(
             id=f"AUD-{uuid.uuid4().hex.upper()}",
             created_at=utc_now(),
-            actor=payload.actor,
+            actor=actor if actor is not None else "unauthenticated",
             action="sensor.update",
             object_type="sensor",
             object_id=sensor.id,

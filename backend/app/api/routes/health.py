@@ -1,3 +1,4 @@
+from typing import Literal
 import os
 from pathlib import Path
 
@@ -24,7 +25,7 @@ def health(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> HealthResponse:
-    database = "ok"
+    database: Literal["ok", "error"] = "ok"
     try:
         db.execute(text("SELECT 1"))
     except Exception:

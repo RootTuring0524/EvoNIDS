@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from typing import Any
+from typing import Any, cast, Literal
 
 from fastapi import HTTPException
 from sqlalchemy import desc, select
@@ -56,6 +56,7 @@ def create_candidate(
     payload: RuleCandidateCreate,
     *,
     request_id: str | None,
+    actor: str | None = None,
 ) -> RuleDetail:
     structured = payload.structured
     if db.get(Rule, structured.rule_id) is not None:
@@ -109,7 +110,7 @@ def create_candidate(
     _audit(
         db,
         rule,
-        actor=payload.author,
+        actor=actor if actor is not None else payload.author,
         action="rule.candidate",
         outcome="completed",
         request_id=request_id,
@@ -145,6 +146,7 @@ def validate_or_advance(
     action: RuleAction,
     *,
     request_id: str | None,
+    actor: str | None = None,
 ) -> RuleDetail:
     version = _current_version(db, rule)
     structured = StructuredRule.model_validate(version.structured_rule)
@@ -165,7 +167,7 @@ def validate_or_advance(
         _audit_transition(
             db,
             rule,
-            actor=action.actor,
+            actor=actor if actor is not None else action.actor,
             action="rule.validating",
             request_id=request_id,
             before_stage=before_stage,
@@ -176,14 +178,14 @@ def validate_or_advance(
     if rule.stage != "validating":
         raise HTTPException(status_code=409, detail=f"Cannot validate a {rule.stage} rule")
 
-    validation = _latest_validation(db, version.id)
-    if validation is None:
+    latest_validation = _latest_validation(db, version.id)
+    if latest_validation is None:
         raise HTTPException(status_code=409, detail="No validation run exists for this version")
     metrics, checks, passed = replay_validation(db, structured)
-    validation.metrics = metrics
-    validation.checks = [check.model_dump() for check in checks]
-    validation.passed = passed
-    validation.state = "passed" if passed else "failed"
+    latest_validation.metrics = metrics
+    latest_validation.checks = [check.model_dump() for check in checks]
+    latest_validation.passed = passed
+    latest_validation.state = "passed" if passed else "failed"
     rule.hit_rate = metrics["hit_rate"]
     rule.false_positive_rate = metrics["false_positive_rate"]
     rule.quality_score = metrics["quality_score"]
@@ -217,6 +219,7 @@ def transition_rule(
     action: RuleAction,
     *,
     request_id: str | None,
+    actor: str | None = None,
 ) -> RuleDetail:
     before_stage = rule.stage
     note = (action.reason or action.note or "").strip()
@@ -237,7 +240,7 @@ def transition_rule(
     _audit_transition(
         db,
         rule,
-        actor=action.actor,
+        actor=actor if actor is not None else action.actor,
         action=f"rule.{target}",
         request_id=request_id,
         before_stage=before_stage,
@@ -279,7 +282,13 @@ def rule_timeline(db: Session, rule: Rule) -> RuleTimeline:
                 outcome="failed" if row.outcome == "failed" else "completed",
             )
         )
-    return RuleTimeline(current_stage=rule.stage, items=items)
+    return RuleTimeline(
+        current_stage=cast(
+            "Literal['candidate', 'validating', 'validated', 'rejected', 'repaired', 'confirmed', 'deployed', 'deprecated']",
+            rule.stage,
+        ),
+        items=items,
+    )
 
 
 def structural_checks(structured: StructuredRule) -> list[RuleCheck]:

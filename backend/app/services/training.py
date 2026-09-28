@@ -12,7 +12,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, cast, Literal
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -82,6 +82,7 @@ def queue_training_run(
     *,
     settings: Settings,
     request_id: str | None,
+    actor: str | None = None,
 ) -> TrainingRun:
     if not ml_runtime_available():
         raise HTTPException(status_code=503, detail="ML dependencies are not installed; install the backend ml extra")
@@ -107,7 +108,7 @@ def queue_training_run(
         task=TASK,
         algorithm=payload.algorithm,
         state="queued",
-        requested_by=payload.actor,
+        requested_by=actor if actor is not None else payload.actor,
         dataset_sha256=dataset.sha256,
         feature_version=FEATURE_VERSION,
         config={
@@ -132,7 +133,7 @@ def queue_training_run(
     db.add(run)
     db.add(
         _audit_event(
-            actor=payload.actor,
+            actor=actor if actor is not None else payload.actor,
             action="training.queued",
             object_id=run.id,
             outcome="accepted",
@@ -177,9 +178,11 @@ def to_training_run_read(db: Session, row: TrainingRun) -> TrainingRunRead:
         dataset_id=row.dataset_id,
         dataset_name=dataset.name if dataset is not None else row.dataset_id,
         model_id=row.model_id,
-        task=row.task,
-        algorithm=row.algorithm,
-        state=row.state,
+        task=cast(
+            "Literal['known_attack_classification_baseline', 'unknown_anomaly_detection']", row.task
+        ),
+        algorithm=cast("Literal['hist_gradient_boosting', 'mlp_autoencoder']", row.algorithm),
+        state=cast("Literal['queued', 'running', 'succeeded', 'failed']", row.state),
         requested_by=row.requested_by,
         dataset_sha256=row.dataset_sha256,
         feature_version=row.feature_version,
@@ -189,7 +192,7 @@ def to_training_run_read(db: Session, row: TrainingRun) -> TrainingRunRead:
         started_at=row.started_at,
         completed_at=row.completed_at,
         metrics=metrics,
-        artifact_state=artifact_state(row.artifact_uri),
+        artifact_state=cast("Literal['available', 'missing', 'unverified']", artifact_state(row.artifact_uri)),
         artifact_sha256=row.artifact_sha256,
         error_message=row.error_message,
         created_at=row.created_at,
@@ -384,7 +387,7 @@ def _train_classifier(path: Path, *, dataset: DatasetAsset, config: dict[str, An
     numeric_frame: dict[str, Any] = {}
     dropped_features: list[str] = []
     for column in raw_features.columns:
-        if _is_identifier_or_target_proxy(str(column), label_column=dataset.label_column):
+        if _is_identifier_or_target_proxy(str(column), label_column=dataset.label_column or ""):
             dropped_features.append(str(column))
             continue
         values = pd.to_numeric(raw_features[column], errors="coerce").replace([np.inf, -np.inf], np.nan)
@@ -542,7 +545,7 @@ def _class_sample_quotas(label_distribution: dict[str, int], *, max_rows: int) -
         }
         allocated = sum(additions.values())
         if allocated == 0:
-            label = max(capacities, key=capacities.get)
+            label = max(capacities, key=lambda candidate: capacities[candidate])
             additions[label] = 1
             allocated = 1
         for label, addition in additions.items():

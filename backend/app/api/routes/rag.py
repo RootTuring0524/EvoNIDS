@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
-from app.api.security import require_admin_token
+from app.api.security import request_actor, require_admin_token
 from app.db.session import get_db
 from app.schemas.api import RagEvidenceCreate, RagEvidenceRead, RagResponse
 from app.services.knowledge_retrieval import create_evidence, search_evidence
@@ -24,13 +24,12 @@ def post_evidence(
     payload: RagEvidenceCreate,
     request: Request,
     _: None = Depends(require_admin_token),
-    actor: str = Query("local-analyst", min_length=1, max_length=120),
     db: Session = Depends(get_db),
 ) -> RagEvidenceRead:
     row = create_evidence(
         db,
         payload,
-        actor=actor,
+        actor=request_actor(request),
         request_id=getattr(request.state, "request_id", None),
     )
     result = search_evidence(db, query=row.source_id, top_k=50, agent_limit=0)

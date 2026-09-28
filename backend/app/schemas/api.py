@@ -26,15 +26,20 @@ DetectionCategory = Literal[
     "Infiltration",
     "Abnormal Outbound Connection",
     "Unknown Anomaly",
+    "Known Attack",
+    "Known Attack + Anomaly",
 ]
 RuleStage = Literal[
     "candidate",
     "validating",
     "validated",
+    "validation_failed",
     "rejected",
     "repaired",
     "confirmed",
+    "canary",
     "deployed",
+    "rolled_back",
     "deprecated",
 ]
 KnowledgeSourceType = Literal[
@@ -213,7 +218,7 @@ class RagRetrievalStats(ApiModel):
 class RagResponse(ApiModel):
     query: str
     top_k: int
-    mode: Literal["keyword_fallback", "hybrid"]
+    mode: Literal["keyword_fallback", "keyword_bm25", "hybrid_bm25_vector"]
     retrieval: RagRetrievalStats
     items: list[RagEvidenceRead]
 
@@ -231,6 +236,7 @@ class RagEvidenceCreate(ApiModel):
     keywords: list[str] = Field(default_factory=list, max_length=50)
     published_at: datetime
     metadata_json: dict[str, Any] = Field(default_factory=dict)
+    workspace_id: str = Field(default="default", min_length=1, max_length=64)
 
 
 class RelatedRule(ApiModel):
@@ -645,6 +651,13 @@ class SensorRead(ApiModel):
     rejected_events: int
     ingest_source: str
     last_error: str | None
+    agent_version: str | None = None
+    last_heartbeat_at: datetime | None = None
+    clock_skew_seconds: float | None = None
+    spool_depth: int = 0
+    dropped_events: int = 0
+    expected_interval_seconds: int = 60
+    capabilities: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
@@ -680,6 +693,12 @@ class SensorHeartbeat(ApiModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     location: str | None = Field(default=None, max_length=255)
     version: str | None = Field(default=None, max_length=80)
+    agent_version: str | None = Field(default=None, max_length=80)
+    capabilities: list[str] = Field(default_factory=list, max_length=32)
+    spool_depth: int = Field(default=0, ge=0)
+    dropped_events: int = Field(default=0, ge=0)
+    clock_skew_seconds: float | None = Field(default=None, ge=-86400, le=86400)
+    expected_interval_seconds: int = Field(default=60, ge=1, le=86400)
     metadata_json: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -696,6 +715,17 @@ class IngestionFailure(ApiModel):
     reason: str
 
 
+class EveBatchDetectionResult(ApiModel):
+    mode: str
+    flows_scored: int
+    signals: int
+    assessments: int
+    alerts_created: int = Field(default=0, alias="alertsCreated")
+    degraded: bool = False
+    degraded_reasons: list[str] = Field(default_factory=list, alias="degradedReasons")
+    models: dict[str, str | None] = Field(default_factory=dict)
+
+
 class EveIngestionResponse(ApiModel):
     sensor_id: str
     accepted_events: int
@@ -704,6 +734,7 @@ class EveIngestionResponse(ApiModel):
     duplicate_events: int
     rejected_events: int
     failures: list[IngestionFailure]
+    detection: EveBatchDetectionResult | None = None
 
 
 class AuditEventRead(ApiModel):
@@ -723,3 +754,635 @@ class AuditEventsResponse(ApiModel):
     total: int
     page: int
     page_size: int
+
+
+ConsoleAuditAction = Literal[
+    "console.login.success",
+    "console.login.failure",
+    "console.login.locked",
+    "console.logout",
+]
+
+
+class ConsoleAuditEvent(ApiModel):
+    action: ConsoleAuditAction
+    note: str | None = Field(default=None, max_length=500)
+
+
+ApiKeyScope = Literal["admin", "sensor", "analyst"]
+
+
+class ApiKeyCreate(ApiModel):
+    name: str = Field(min_length=1, max_length=120)
+    scope: ApiKeyScope
+
+
+class ApiKeyRead(ApiModel):
+    id: str
+    name: str
+    scope: ApiKeyScope
+    prefix: str
+    enabled: bool
+    last_used_at: datetime | None = None
+
+
+class ApiKeyCreated(ApiKeyRead):
+    secret: str
+
+
+class ApiKeysResponse(ApiModel):
+    items: list[ApiKeyRead]
+
+
+CaseSeverity = Literal["critical", "high", "medium", "low"]
+CaseStatus = Literal["open", "investigating", "contained", "closed", "archived"]
+
+
+class CaseCreate(ApiModel):
+    title: str = Field(min_length=3, max_length=255)
+    summary: str = Field(default="", max_length=4000)
+    severity: CaseSeverity = Field(default="medium")
+
+
+class CaseRead(ApiModel):
+    id: str
+    title: str
+    summary: str
+    severity: CaseSeverity
+    status: CaseStatus
+    assignee: str | None = None
+    created_by: str
+    alert_count: int
+    highest_risk_score: float
+    created_at: datetime
+    updated_at: datetime
+
+
+class CaseUpdate(ApiModel):
+    summary: str | None = Field(default=None, max_length=4000)
+    assignee: str | None = Field(default=None, max_length=120)
+    status: CaseStatus | None = None
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class CaseAttachRequest(ApiModel):
+    alert_id: str = Field(min_length=1, max_length=96)
+
+
+class CasesResponse(ApiModel):
+    items: list[CaseRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class CaseTimelineItem(ApiModel):
+    id: str
+    event_type: str
+    actor: str
+    note: str | None = None
+    created_at: datetime
+
+
+class CaseDetail(ApiModel):
+    case: CaseRead
+    alerts: list[AlertRead]
+    timeline: list[CaseTimelineItem]
+
+
+class EvidenceRead(ApiModel):
+    id: str
+    source_type: str
+    sensor_id: str
+    event_type: str
+    external_id: str
+    observed_at: datetime
+    received_at: datetime
+    content_sha256: str
+    integrity: str
+    data_missing: str
+    parser_version: str
+    redacted: bool
+    source_ref_type: str | None = None
+    source_ref_id: str | None = None
+    artifact_size_bytes: int
+    created_at: datetime
+
+
+class EvidenceListResponse(ApiModel):
+    items: list[EvidenceRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class EvidenceDetail(EvidenceRead):
+    fields: dict[str, Any]
+    artifact_text: str | None = None
+
+
+class EntityRead(ApiModel):
+    id: str
+    entity_type: str
+    value: str
+    first_seen_at: datetime
+    last_seen_at: datetime
+    event_count: int
+    sensor_ids: list[str]
+    created_at: datetime
+
+
+class EntitiesResponse(ApiModel):
+    items: list[EntityRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class EntityRelationItem(ApiModel):
+    id: str
+    relation_type: str
+    other_entity_id: str
+    other_entity_value: str
+    event_count: int
+    first_seen_at: datetime
+    last_seen_at: datetime
+
+
+class EntityDetail(EntityRead):
+    relations: list[EntityRelationItem]
+
+
+class CaseSuggestionItem(ApiModel):
+    case_id: str
+    case_title: str
+    case_status: str
+    shared_ips: list[str]
+    matching_alert_ids: list[str]
+    updated_at: datetime
+
+
+class CaseSuggestionResponse(ApiModel):
+    items: list[CaseSuggestionItem]
+
+
+DetectionChannel = Literal["suricata", "baseline", "autoencoder"]
+DetectionDecision = Literal["alert", "benign", "abstain"]
+DetectionModeLiteral = Literal["disabled", "shadow", "enabled"]
+
+
+class DetectionSignalRead(ApiModel):
+    id: str
+    created_at: datetime
+    flow_id: str | None = None
+    alert_id: str | None = None
+    sensor_id: str
+    channel: DetectionChannel
+    channel_version: str
+    model_id: str | None = None
+    raw_score: float
+    calibrated_score: float
+    threshold: float
+    decision: DetectionDecision
+    uncertainty: float
+    feature_version: str
+    feature_source: str
+    imputed_features: list[str]
+    latency_ms: float
+    degraded: bool
+    degraded_reason: str | None = None
+    detail: dict[str, Any]
+
+
+class DetectionSignalsResponse(ApiModel):
+    items: list[DetectionSignalRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class RiskAssessmentRead(ApiModel):
+    id: str
+    created_at: datetime
+    flow_id: str | None = None
+    alert_id: str | None = None
+    sensor_id: str
+    signal_ids: list[str]
+    inputs: list[dict[str, Any]]
+    weights: dict[str, Any]
+    final_score: float
+    uncertainty: float
+    decision: Literal["malicious", "suspicious", "benign", "abstain"]
+    explanation: str
+    degraded_reasons: list[str]
+    mode: str
+
+
+class DetectionChannelStatus(ApiModel):
+    available: bool
+    model_id: str | None = None
+    version: str | None = None
+    contract_matches: bool
+    reason: str | None = None
+
+
+class DetectionStatusResponse(ApiModel):
+    mode: DetectionModeLiteral
+    feature_version: str
+    channels: dict[str, DetectionChannelStatus]
+    alerting: bool
+    notes: list[str]
+
+
+class DetectionFlowDetail(ApiModel):
+    flow_id: str
+    signals: list[DetectionSignalRead]
+    assessments: list[RiskAssessmentRead]
+
+
+class SensorMetric(ApiModel):
+    value: float | None = None
+    measured: bool
+    unit: str
+    note: str | None = None
+
+
+class SensorDataQuality(ApiModel):
+    sensor_id: str
+    state: SensorState
+    health_reason: str
+    window_seconds: int
+    batches: int
+    events_accepted: int
+    events_rejected: int
+    events_duplicate: int
+    reject_rate: SensorMetric
+    duplicate_rate: SensorMetric
+    ingest_latency_p50_ms: SensorMetric
+    ingest_latency_p95_ms: SensorMetric
+    clock_skew_seconds: SensorMetric
+    gap_count: SensorMetric
+    estimated_missing_seconds: SensorMetric
+    spool_depth: int
+    dropped_events: int
+    expected_interval_seconds: int
+    last_batch_at: datetime | None = None
+    last_event_at: datetime | None = None
+    last_heartbeat_at: datetime | None = None
+
+
+class SensorHealthResponse(ApiModel):
+    items: list[SensorDataQuality]
+
+
+class IngestionBatchRead(ApiModel):
+    id: str
+    sensor_id: str
+    batch_id: str
+    received_at: datetime
+    content_sha256: str
+    encoding: str
+    payload_bytes: int
+    event_count: int
+    accepted_count: int
+    duplicate_count: int
+    rejected_count: int
+    created_flows: int
+    created_alerts: int
+    first_event_at: datetime | None = None
+    last_event_at: datetime | None = None
+    clock_skew_seconds: float | None = None
+    status: str
+
+
+class IngestionBatchesResponse(ApiModel):
+    items: list[IngestionBatchRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class EveBatchIngestionResponse(EveIngestionResponse):
+    batch_id: str
+    replayed: bool
+    content_sha256: str = ""
+
+
+InvestigationState = Literal[
+    "queued", "running", "succeeded", "insufficient_evidence", "degraded", "failed", "cancelled"
+]
+ClaimType = Literal["observation", "inference", "recommendation", "rejected"]
+FeedbackVerdict = Literal["agree", "disagree", "unsure"]
+FeedbackObjectType = Literal["investigation_run", "alert", "flow", "claim"]
+
+
+class InvestigationCreate(ApiModel):
+    alert_id: str = Field(min_length=1, max_length=96)
+    case_id: str | None = Field(default=None, max_length=96)
+    max_tool_calls: int = Field(default=6, ge=1, le=6)
+    budget_usd: float | None = Field(default=None, ge=0.0, le=10.0)
+
+
+class InvestigationClaimRead(ApiModel):
+    id: str
+    run_id: str
+    claim_index: int
+    claim_type: ClaimType
+    statement: str
+    evidence_ids: list[str]
+    confidence: float
+    uncertainty: float
+    mitre_techniques: list[str]
+    verified: bool
+    rejection_reason: str | None = None
+    created_at: datetime
+
+
+class ToolExecutionRead(ApiModel):
+    id: str
+    run_id: str
+    tool_name: str
+    tool_version: str
+    arguments: dict[str, Any]
+    result_summary: dict[str, Any]
+    state: Literal["completed", "rejected", "failed"]
+    duration_ms: float
+    error: str | None = None
+    created_at: datetime
+
+
+class InvestigationRunRead(ApiModel):
+    id: str
+    alert_id: str | None = None
+    case_id: str | None = None
+    requested_by: str
+    state: InvestigationState
+    mode: str
+    provider: str | None = None
+    model_id: str | None = None
+    prompt_template_version: str
+    tool_registry_version: str
+    knowledge_version: str | None = None
+    max_tool_calls: int
+    budget_usd: float
+    input_evidence_ids: list[str]
+    retrieval: dict[str, Any]
+    summary: str
+    uncertainty: float
+    prompt_tokens: int
+    completion_tokens: int
+    cost_estimate_usd: float
+    latency_ms: float
+    attempts: int
+    degraded_reasons: list[str]
+    error_message: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class FeedbackRead(ApiModel):
+    id: str
+    object_type: str
+    object_id: str
+    verdict: FeedbackVerdict
+    label: str | None = None
+    comment: str | None = None
+    actor: str
+    created_at: datetime
+
+
+class InvestigationDetail(ApiModel):
+    run: InvestigationRunRead
+    claims: list[InvestigationClaimRead]
+    tools: list[ToolExecutionRead]
+    feedback: list[FeedbackRead]
+
+
+class InvestigationsResponse(ApiModel):
+    items: list[InvestigationRunRead]
+    total: int
+    page: int
+    page_size: int
+
+
+class FeedbackCreate(ApiModel):
+    object_type: FeedbackObjectType = "investigation_run"
+    object_id: str = Field(min_length=1, max_length=96)
+    verdict: FeedbackVerdict
+    label: str | None = Field(default=None, max_length=64)
+    comment: str | None = Field(default=None, max_length=1000)
+
+
+class LlmCircuitState(ApiModel):
+    state: Literal["open", "closed"]
+    consecutive_failures: int
+    reset_in_seconds: float
+
+
+class LlmBudgetState(ApiModel):
+    day: str
+    spent_usd: float
+    daily_budget_usd: float
+    run_budget_usd: float
+    remaining_usd: float
+
+
+class LlmStatusResponse(ApiModel):
+    provider: str
+    model: str | None = None
+    available: bool
+    circuit: LlmCircuitState
+    concurrency_limit: int
+    timeout_seconds: float
+    max_attempts: int
+    budget: LlmBudgetState
+    stats: dict[str, int]
+    pricing_known: bool
+
+
+class LlmProbeResponse(ApiModel):
+    available: bool
+    models: list[str]
+    configured_model_exists: bool
+    error: str | None = None
+
+
+SandboxStatus = Literal["blocked", "partial", "validated", "validation_failed", "failed"]
+DeploymentStateLiteral = Literal["canary", "deployed", "rolled_back"]
+
+
+class RuleIRVersionRead(ApiModel):
+    id: str
+    rule_id: str
+    version: int
+    sid: int
+    rev: int
+    ir_digest: str
+    ir_document: dict[str, Any]
+    suricata_text: str
+    state: str
+    created_by: str
+    created_at: datetime
+
+
+class RuleSandboxRunRead(ApiModel):
+    id: str
+    rule_id: str
+    rule_version_id: str
+    status: SandboxStatus
+    suricata_available: bool
+    suricata_version: str | None = None
+    syntax_passed: bool | None = None
+    executor_version: str
+    normal_pcap: str | None = None
+    malicious_pcap: str | None = None
+    metrics: dict[str, Any]
+    checks: list[dict[str, Any]]
+    passed: bool
+    blocked_reason: str | None = None
+    detail: dict[str, Any]
+    created_at: datetime
+
+
+class SandboxCapability(ApiModel):
+    suricata_available: bool
+    binary: str | None = None
+    executor_version: str
+    note: str
+    # Without these the response_model silently dropped them and the console could
+    # not show the corpus inventory or what resource measurement is possible here.
+    corpus: dict[str, Any] = Field(default_factory=dict)
+    resources: dict[str, Any] = Field(default_factory=dict)
+
+
+class SensorGroupCreate(ApiModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=500)
+    sensor_ids: list[str] = Field(default_factory=list, max_length=500)
+    stage: Literal["canary", "production"] = "canary"
+
+
+class SensorGroupRead(ApiModel):
+    id: str
+    name: str
+    description: str
+    sensor_ids: list[str]
+    stage: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class SensorGroupsResponse(ApiModel):
+    items: list[SensorGroupRead]
+
+
+class RuleCompileRequest(ApiModel):
+    ir: dict[str, Any]
+    sid: int | None = Field(default=None, ge=1_000_000, le=1_999_999)
+
+
+class RuleSandboxRequest(ApiModel):
+    normal_pcap: str | None = Field(default=None, max_length=1_000)
+    malicious_pcap: str | None = Field(default=None, max_length=1_000)
+    regression_version_id: str | None = Field(default=None, max_length=96)
+    malicious_flows: int = Field(default=0, ge=0, le=10_000_000)
+    normal_flows: int = Field(default=0, ge=0, le=10_000_000)
+    recall_floor: float = Field(default=0.8, ge=0.0, le=1.0)
+    false_positives_per_million_ceiling: float = Field(default=1_000.0, ge=0.0)
+
+
+class RuleDeploymentCreate(ApiModel):
+    rule_version_id: str = Field(min_length=1, max_length=96)
+    sensor_group_id: str = Field(min_length=1, max_length=96)
+    state: DeploymentStateLiteral = "canary"
+    note: str | None = Field(default=None, max_length=500)
+
+
+class RuleDeploymentRead(ApiModel):
+    id: str
+    rule_id: str
+    rule_version_id: str
+    sensor_group_id: str
+    state: DeploymentStateLiteral
+    deployed_by: str
+    deployed_at: datetime | None = None
+    promoted_at: datetime | None = None
+    rolled_back_at: datetime | None = None
+    rollback_reason: str | None = None
+    monitoring: dict[str, Any]
+    previous_version_id: str | None = None
+    created_at: datetime
+
+
+class RuleDeploymentsResponse(ApiModel):
+    items: list[RuleDeploymentRead]
+
+
+class RuleBridgeRequest(ApiModel):
+    """Convert a legacy structured rule into normalized Rule IR."""
+
+    structured: dict[str, Any]
+    sid: int | None = Field(default=None, ge=1_000_000, le=1_999_999)
+    msg: str | None = Field(default=None, max_length=200)
+    accept_partial: bool = False
+
+
+class RuleConditionAssessment(ApiModel):
+    condition: dict[str, Any]
+    disposition: Literal["supported", "approximate", "unsupported"]
+    reason: str
+
+
+class RuleBridgeResponse(ApiModel):
+    compilable: bool
+    ir_document: dict[str, Any] | None = None
+    suricata_text: str | None = None
+    supported: list[RuleConditionAssessment]
+    approximate: list[RuleConditionAssessment]
+    unsupported: list[RuleConditionAssessment]
+    dropped_count: int
+    notes: list[str]
+
+
+class RuleRollbackRequest(ApiModel):
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class RulePromoteRequest(ApiModel):
+    note: str | None = Field(default=None, max_length=500)
+    target_group_id: str | None = Field(default=None, max_length=96)
+
+
+ModelRolloutState = Literal["shadow", "canary", "active", "retired"]
+
+
+class ModelRolloutRequest(ApiModel):
+    state: ModelRolloutState
+    note: str | None = Field(default=None, max_length=500)
+
+
+class ModelRollbackRequest(ApiModel):
+    role: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=10, max_length=500)
+
+
+class ModelRolloutRead(ApiModel):
+    id: str
+    name: str
+    role: str
+    version: str
+    state: str
+    rollout: ModelRolloutState
+    rollout_updated_at: str | None = None
+    rollout_updated_by: str | None = None
+    rollout_note: str | None = None
+    artifact_state: str
+    feature_version: str
+    contract_matches: bool
+
+
+class ModelRolloutsResponse(ApiModel):
+    items: list[ModelRolloutRead]
+    active: dict[str, str]

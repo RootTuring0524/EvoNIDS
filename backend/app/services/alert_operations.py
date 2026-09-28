@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Any
+from typing import Any, cast, Literal
 
 from fastapi import HTTPException
 from sqlalchemy import desc, select
@@ -112,9 +112,12 @@ def build_alert_detail(db: Session, alert: Alert) -> AlertDetail:
             AgentAnalysis(
                 display_model="DeepSeek V4 Pro",
                 run_id=latest_agent_run.id,
-                state=latest_agent_run.state,
+                state=cast("Literal['completed', 'running', 'failed']", latest_agent_run.state),
                 hypothesis=latest_agent_run.hypothesis,
-                pattern_decision=latest_agent_run.pattern_decision,
+                pattern_decision=cast(
+                    "Literal['new_pattern', 'rule_variant', 'known_match', 'benign']",
+                    latest_agent_run.pattern_decision,
+                ),
                 summary=latest_agent_run.summary,
                 recommendation=latest_agent_run.recommendation,
                 evidence_ids=latest_agent_run.evidence_ids,
@@ -154,14 +157,17 @@ def build_alert_detail(db: Session, alert: Alert) -> AlertDetail:
             )
         ),
         rag_query=rag_query,
-        related_rule=(
-            {
-                "record_id": related.id,
-                "rule_id": related.id,
-                "label": related.name,
-            }
-            if related
-            else None
+        related_rule=cast(
+            Any,
+            (
+                {
+                    "record_id": related.id,
+                    "rule_id": related.id,
+                    "label": related.name,
+                }
+                if related
+                else None
+            ),
         ),
     )
 
@@ -172,6 +178,7 @@ def update_alert(
     update: AlertUpdate,
     *,
     request_id: str | None,
+    actor: str | None = None,
 ) -> Alert:
     before = _alert_state(alert)
     fields = update.model_fields_set
@@ -197,7 +204,7 @@ def update_alert(
         AuditEvent(
             id=f"AUD-{uuid.uuid4().hex.upper()}",
             created_at=utc_now(),
-            actor=update.actor,
+            actor=actor if actor is not None else "unauthenticated",
             action="alert.update",
             object_type="alert",
             object_id=alert.id,

@@ -18,7 +18,7 @@
     "benignMethod": "deterministic BLAKE2b threshold sample",
     "benignSampleRate": 0.05
   },
-  "output": "D:\\IDS System\\backend\\datasets\\CICIDS2017\\cicids2017_pcap_flow_research_v1.csv.gz",
+  "output": "datasets\\CICIDS2017\\cicids2017_pcap_flow_research_v1.csv.gz",
   "outputSizeBytes": 43184277,
   "outputSha256": "bf0ef5187f6db58f2248a4b9b3442483e91093936946a2ace60119d8e6fa49a3",
   "featureCount": 46,
@@ -45,7 +45,7 @@
   "days": [
     {
       "day": "Monday",
-      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Monday-WorkingHours.pcap",
+      "source": "<original-pcap-directory>\\Monday-WorkingHours.pcap",
       "sourceSizeBytes": 10822507416,
       "sourceSha256": "f6eac599358f216b074338813a1cf7be3cc4e91d116e13efc0dc71f2cca11972",
       "packetBlocksScanned": 11709971,
@@ -78,7 +78,7 @@
     },
     {
       "day": "Tuesday",
-      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Tuesday-WorkingHours.pcap",
+      "source": "<original-pcap-directory>\\Tuesday-WorkingHours.pcap",
       "sourceSizeBytes": 11048283608,
       "sourceSha256": "080c2250154c5a174c03660ed0f75a3858d41a27511ba716e780d7bcb1ec4c57",
       "packetBlocksScanned": 11551954,
@@ -119,7 +119,7 @@
     },
     {
       "day": "Wednesday",
-      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Wednesday-WorkingHours.pcap",
+      "source": "<original-pcap-directory>\\Wednesday-WorkingHours.pcap",
       "sourceSizeBytes": 13420789612,
       "sourceSha256": "cd2674db7559a53f24bc03be3239b315700174ccaef72d10f5edc4c1a08f6186",
       "packetBlocksScanned": 13788878,
@@ -166,7 +166,7 @@
     },
     {
       "day": "Thursday",
-      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Thursday-WorkingHours.pcap",
+      "source": "<original-pcap-directory>\\Thursday-WorkingHours.pcap",
       "sourceSizeBytes": 8302500180,
       "sourceSha256": "38f8b1bb276849bf1721f7c4de22bebfa7f59a74e52286d4c0a37edbb118fe01",
       "packetBlocksScanned": 9322025,
@@ -211,7 +211,7 @@
     },
     {
       "day": "Friday",
-      "source": "D:\\BaiduNetdiskDownload\\CICIDS2017\\Friday-WorkingHours.pcap",
+      "source": "<original-pcap-directory>\\Friday-WorkingHours.pcap",
       "sourceSizeBytes": 8839309056,
       "sourceSha256": "beff0dcce1eebc9b2454582f4dc8ed0ba0112b2c619a710bf03af93147254cd0",
       "packetBlocksScanned": 9997874,

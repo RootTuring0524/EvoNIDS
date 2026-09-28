@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.api.security import require_admin_token
+from app.api.security import request_actor, require_admin_token
 from app.db.models import Rule
 from app.db.session import get_db
 from app.schemas.api import (
@@ -48,6 +48,7 @@ def post_rule(
         db,
         payload,
         request_id=getattr(request.state, "request_id", None),
+        actor=request_actor(request),
     )
 
 
@@ -82,6 +83,7 @@ def validate_rule(
         _get_rule(db, rule_id),
         action,
         request_id=getattr(request.state, "request_id", None),
+        actor=request_actor(request),
     )
 
 
@@ -98,6 +100,7 @@ def _lifecycle_endpoint(target: str):
             target,
             action,
             request_id=getattr(request.state, "request_id", None),
+            actor=request_actor(request),
         )
 
     return endpoint

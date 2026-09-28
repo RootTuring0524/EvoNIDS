@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.security import require_admin_token
+from app.api.security import request_actor, require_admin_token
 from app.db.base import utc_now
 from app.db.models import AgentRun, Alert, AuditEvent
 from app.db.session import get_db
@@ -83,13 +83,13 @@ def list_alerts(
             )
     items = []
     for row in rows:
-        agent_run = latest_by_alert.get(row.id)
+        latest_run = latest_by_alert.get(row.id)
         items.append(
             AlertRead.model_validate(row).model_copy(
                 update={
-                    "agent_state": agent_run.state if agent_run else "not_run",
-                    "agent_decision": agent_run.pattern_decision if agent_run else None,
-                    "agent_run_id": agent_run.id if agent_run else None,
+                    "agent_state": latest_run.state if latest_run else "not_run",
+                    "agent_decision": latest_run.pattern_decision if latest_run else None,
+                    "agent_run_id": latest_run.id if latest_run else None,
                 }
             )
         )
@@ -205,5 +205,6 @@ def patch_alert(
         row,
         update,
         request_id=getattr(request.state, "request_id", None),
+        actor=request_actor(request),
     )
     return build_alert_detail(db, updated)

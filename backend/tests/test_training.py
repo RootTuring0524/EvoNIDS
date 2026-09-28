@@ -1,18 +1,39 @@
+import os
+import time
 from pathlib import Path
 from tempfile import gettempdir
 
-import joblib
-import pandas as pd
-import pytest
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-from sqlalchemy import select
+database_path = Path(gettempdir()) / "evonids-training-test.db"
+database_path.unlink(missing_ok=True)
+# Best-effort defaults; the effective (possibly already frozen) settings are read
+# after the app import below so this module works in any collection order.
+_fallback_dataset_root = Path(gettempdir()) / "evonids-dataset-test"
+_fallback_dataset_root.mkdir(exist_ok=True)
+os.environ["EVONIDS_DATABASE_URL"] = f"sqlite:///{database_path.as_posix()}"
+os.environ["EVONIDS_AUTO_CREATE_DB"] = "true"
+os.environ["EVONIDS_ADMIN_API_TOKEN"] = "test-admin-token"
+os.environ["EVONIDS_ENVIRONMENT"] = "development"
+os.environ["EVONIDS_DATASET_ROOT"] = str(_fallback_dataset_root)
 
-from app.db.models import TrainingRun
-from app.db.session import SessionLocal
-from app.main import app
-from app.schemas.api import TrainingMetrics
-from app.services.training import (
+import joblib  # noqa: E402
+import pandas as pd  # noqa: E402
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+from pydantic import ValidationError  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+
+from app.db.models import TrainingRun  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
+from app.core.config import get_settings  # noqa: E402
+from app.main import app  # noqa: E402
+
+
+# Effective settings: the roots the API actually uses, whatever was imported first.
+dataset_root = Path(get_settings().dataset_root)
+dataset_root.mkdir(parents=True, exist_ok=True)
+
+from app.schemas.api import TrainingMetrics  # noqa: E402
+from app.services.training import (  # noqa: E402
     _class_sample_quotas,
     _is_identifier_or_target_proxy,
     recover_interrupted_training_runs,
@@ -20,7 +41,7 @@ from app.services.training import (
 
 
 def test_real_baseline_training_persists_metrics_and_loadable_artifact():
-    dataset_root = Path(gettempdir()) / "evonids-dataset-test"
+    dataset_root = Path(get_settings().dataset_root)
     dataset_path = dataset_root / "training-real-fixture.csv"
     lines = ["duration,packets,bytes,syn_ratio,protocol,Label"]
     labels = ("BENIGN", "PortScan", "DDoS")
@@ -70,10 +91,19 @@ def test_real_baseline_training_persists_metrics_and_loadable_artifact():
         )
         assert queued.status_code == 202
         run_id = queued.json()["id"]
-        completed = client.get(f"/api/v1/training/runs/{run_id}")
-        assert completed.status_code == 200
-        payload = completed.json()
-        assert payload["state"] == "succeeded"
+        # The request path only queues; the in-process training worker executes
+        # the run, so poll until the terminal state arrives.
+        deadline = time.time() + 120
+        payload = None
+        while time.time() < deadline:
+            completed = client.get(f"/api/v1/training/runs/{run_id}")
+            assert completed.status_code == 200
+            payload = completed.json()
+            if payload["state"] in {"succeeded", "failed"}:
+                break
+            time.sleep(0.3)
+        assert payload is not None
+        assert payload["state"] == "succeeded", payload.get("errorMessage")
         assert payload["samplesSeen"] == 150
         assert payload["samplesUsed"] == 150
         assert payload["artifactState"] == "available"
@@ -95,7 +125,7 @@ def test_real_baseline_training_persists_metrics_and_loadable_artifact():
             headers={"x-evonids-admin-token": "test-admin-token"},
         )
         assert protected_dataset.status_code == 409
-        assert run_id in protected_dataset.json()["detail"]
+        assert run_id in protected_dataset.json()["message"]
 
         dataset_path.write_text(
             dataset_path.read_text(encoding="utf-8") + "\n1,1,1,0,TCP,BENIGN",

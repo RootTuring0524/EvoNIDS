@@ -518,7 +518,7 @@ def _proportional_quotas(counts: dict[str, int], *, max_rows: int) -> dict[str, 
         }
         allocated = sum(additions.values())
         if allocated == 0:
-            label = max(capacities, key=capacities.get)
+            label = max(capacities, key=lambda candidate: capacities[candidate])
             additions[label] = 1
             allocated = 1
         for label, addition in additions.items():

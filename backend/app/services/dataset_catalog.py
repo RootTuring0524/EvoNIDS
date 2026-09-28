@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any, cast, Literal
 
 import csv
 import gzip
@@ -41,6 +42,7 @@ def register_dataset_asset(
     *,
     settings: Settings,
     request_id: str | None,
+    actor: str | None = None,
 ) -> DatasetAsset:
     if db.get(DatasetAsset, payload.id) is not None:
         raise HTTPException(status_code=409, detail=f"Dataset {payload.id} already exists")
@@ -72,7 +74,7 @@ def register_dataset_asset(
     db.add(row)
     db.add(
         _audit_event(
-            actor=payload.actor,
+            actor=actor if actor is not None else payload.actor,
             action="dataset.registered",
             object_id=row.id,
             outcome="accepted",
@@ -180,7 +182,9 @@ def profile_dataset_asset(dataset_id: str) -> None:
                     "Dataset content changed after a training run established immutable lineage; "
                     "register the changed file as a new dataset version"
                 )
-            profile = _profile_csv(path, requested_label=row.label_column, normal_labels=row.normal_labels)
+            profile: dict[str, Any] = _profile_csv(
+            path, requested_label=row.label_column, normal_labels=row.normal_labels
+        )
             row.file_size_bytes = path.stat().st_size
             row.sha256 = digest
             row.label_column = profile["label_column"]
@@ -256,7 +260,7 @@ def to_dataset_read(row: DatasetAsset, *, settings: Settings) -> DatasetRead:
         id=row.id,
         name=row.name,
         version=row.version,
-        state=state,
+        state=cast("Literal['profiling', 'ready', 'error', 'missing']", state),
         format=row.format,
         relative_path=row.relative_path,
         source_uri=row.source_uri,
@@ -388,8 +392,8 @@ def _audit_event(
     outcome: str,
     request_id: str | None,
     note: str,
-    before_state: dict[str, object] | None = None,
-    after_state: dict[str, object] | None = None,
+    before_state: dict[str, Any] | None = None,
+    after_state: dict[str, Any] | None = None,
 ) -> AuditEvent:
     return AuditEvent(
         id=f"AUD-{uuid.uuid4().hex.upper()}",

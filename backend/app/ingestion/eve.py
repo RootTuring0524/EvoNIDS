@@ -23,6 +23,7 @@ class EveRecord:
     protocol: str | None
     payload: dict[str, Any]
     line_number: int
+    raw_line: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +60,7 @@ def parse_eve_line(line: str, line_number: int = 1) -> EveRecord:
         protocol=payload.get("proto"),
         payload=payload,
         line_number=line_number,
+        raw_line=line,
     )
 
 

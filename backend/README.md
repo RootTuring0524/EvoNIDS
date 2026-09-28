@@ -18,6 +18,80 @@ Open `http://127.0.0.1:8000/docs` for OpenAPI.
 
 The default SQLite database is only for local learning and tests. Docker Compose uses PostgreSQL.
 
+## API error contract
+
+Every handled failure answers with the same JSON envelope (see ADR 0002):
+
+```json
+{"error": "not_found", "message": "Alert no-such-alert-xyz was not found", "requestId": "..."}
+```
+
+- `error` is a stable machine code registered by HTTP status in `app/core/errors.py`
+  (`bad_request`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `payload_too_large`,
+  `validation_error`, `rate_limited`, `internal_error`, `bad_gateway`, `service_unavailable`, ...).
+- `message` is human-readable text and may change without notice.
+- `requestId` echoes the `X-Request-ID` request header (a fresh UUID is generated when absent).
+- Request validation failures (422) additionally carry a structured `details` array.
+
+## Environment and production configuration
+
+- `EVONIDS_ENVIRONMENT` must be one of `development`, `staging`, `production`.
+- Empty `EVONIDS_ADMIN_API_TOKEN` / `EVONIDS_SENSOR_INGEST_TOKEN` values are treated as unset.
+- A `production` boot refuses to start (before serving traffic) unless both tokens are
+  configured and `EVONIDS_DATABASE_URL` points at PostgreSQL — see
+  `app/core/config.validate_production_settings`.
+
+## Logging
+
+All log records are emitted as **JSON lines** (`app/core/logging.py`): one object per line
+with `ts`, `level`, `logger`, `message` plus any structured context the caller attached.
+Every request writes an `evonids.access` record carrying `request_id`, `method`, `path`,
+`status_code`, `duration_ms` and — when authentication resolved — `principal`
+(e.g. `env:admin` or `apikey:sensor-2`). Error records carry the same `request_id` so a
+request can be traced end to end.
+
+## Audit actors
+
+Audit events for request-scoped operations (alert disposition, rule lifecycle, dataset
+registration/reprofile/removal, sensor administration, knowledge evidence writes, training
+start) record the **server-resolved principal** as the actor (`env:admin`,
+`apikey:<name>`, ...) via `app.api.security.request_actor`. Client-supplied `actor`
+fields in request bodies or query strings are ignored for audit purposes, so audit records
+cannot be falsified by whoever sends the request. Endpoints that do not resolve a
+credential (console-only gates) honestly record `unauthenticated`. Background/service
+actors (`training-recovery`, `baseline-trainer`, `validation-gate`, `dataset-profiler`,
+`console`, model display names) are written by the service itself, not by clients.
+
+## Authentication and API keys
+
+Machine identities authenticate with either:
+
+- **Legacy environment tokens** (`EVONIDS_ADMIN_API_TOKEN`, `EVONIDS_SENSOR_INGEST_TOKEN`,
+  optional `EVONIDS_ANALYST_API_TOKEN`) matched in constant time with no database access,
+  or
+- **Scoped API keys** stored as salted SHA-256 digests in the `api_keys` table
+  (Alembic `20260907_0007`; scopes `admin` / `sensor` / `analyst`). The raw secret is
+  returned exactly once at creation.
+
+Manage keys with the administrative API (admin credential required):
+
+```powershell
+# create (the response contains `secret` once)
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/api-keys" `
+  -H "Content-Type: application/json" -H "X-EvoNIDS-Admin-Token: YOUR_ADMIN_TOKEN" `
+  --data-binary "{\"name\":\"lab-sensor-2\",\"scope\":\"sensor\"}"
+
+# list / revoke
+curl.exe "http://127.0.0.1:8000/api/v1/admin/api-keys" -H "X-EvoNIDS-Admin-Token: YOUR_ADMIN_TOKEN"
+curl.exe -X POST "http://127.0.0.1:8000/api/v1/admin/api-keys/AK-XXXX/revoke" `
+  -H "X-EvoNIDS-Admin-Token: YOUR_ADMIN_TOKEN"
+```
+
+Every successful authentication attaches an `ApiKeyPrincipal` to `request.state.principal`,
+and key creation/revocation write `apikey.*` audit events. A scope is "unconfigured"
+(HTTP 503) only when neither its environment token nor any enabled key of that scope
+exists.
+
 ## Seed the explicit local demo
 
 The real backend starts empty by design. To load one labeled attack flow, one normal flow, one
@@ -169,8 +243,10 @@ Example request body:
 This is deliberately a `HistGradientBoostingClassifier` baseline, not the locked Flow Transformer.
 It establishes a reproducible benchmark that the later Transformer must beat under the same dataset
 identity and split protocol. Set `EVONIDS_TRAINING_CPU_THREADS=0` to let the runtime use the machine
-default, or a positive integer to cap CPU worker threads. Training runs execute in the FastAPI
-process today; a production deployment should move them to a durable job queue before accepting
-concurrent or multi-hour workloads. Until that queue exists, API startup explicitly marks jobs
-interrupted by a prior process exit as failed and records an audit event instead of leaving them
-stuck in a false running state.
+default, or a positive integer to cap CPU worker threads. The request path only queues a run
+(state `queued`, HTTP 202); a dedicated in-process worker thread
+(`app/services/training_worker.py`, started by the API lifespan) executes runs sequentially
+(see ADR 0004). API startup marks jobs interrupted by a prior process exit as failed with an
+audit event instead of leaving them stuck in a false running state. A durable job broker with
+automatic retry is planned with the Phase 3 collection plane (NATS JetStream) — before
+accepting concurrent or multi-hour workloads or multiple API replicas, adopt that broker.

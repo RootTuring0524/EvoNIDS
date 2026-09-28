@@ -11,21 +11,27 @@ class RuleStage(StrEnum):
     CANDIDATE = "candidate"
     VALIDATING = "validating"
     VALIDATED = "validated"
+    VALIDATION_FAILED = "validation_failed"
     REJECTED = "rejected"
     REPAIRED = "repaired"
     CONFIRMED = "confirmed"
+    CANARY = "canary"
     DEPLOYED = "deployed"
+    ROLLED_BACK = "rolled_back"
     DEPRECATED = "deprecated"
 
 
 ALLOWED_TRANSITIONS = {
     RuleStage.CANDIDATE: {RuleStage.VALIDATING},
     RuleStage.REPAIRED: {RuleStage.VALIDATING},
-    RuleStage.VALIDATING: {RuleStage.VALIDATED, RuleStage.REJECTED},
-    RuleStage.VALIDATED: {RuleStage.CONFIRMED, RuleStage.REPAIRED},
+    RuleStage.VALIDATING: {RuleStage.VALIDATED, RuleStage.REJECTED, RuleStage.VALIDATION_FAILED},
+    RuleStage.VALIDATED: {RuleStage.CONFIRMED, RuleStage.REPAIRED, RuleStage.VALIDATION_FAILED},
+    RuleStage.VALIDATION_FAILED: {RuleStage.REPAIRED},
     RuleStage.REJECTED: {RuleStage.REPAIRED},
-    RuleStage.CONFIRMED: {RuleStage.DEPLOYED, RuleStage.REPAIRED},
-    RuleStage.DEPLOYED: {RuleStage.DEPRECATED, RuleStage.REPAIRED},
+    RuleStage.CONFIRMED: {RuleStage.DEPLOYED, RuleStage.CANARY, RuleStage.REPAIRED},
+    RuleStage.CANARY: {RuleStage.DEPLOYED, RuleStage.ROLLED_BACK, RuleStage.REPAIRED},
+    RuleStage.DEPLOYED: {RuleStage.DEPRECATED, RuleStage.REPAIRED, RuleStage.ROLLED_BACK},
+    RuleStage.ROLLED_BACK: {RuleStage.REPAIRED, RuleStage.DEPRECATED},
     RuleStage.DEPRECATED: {RuleStage.REPAIRED},
 }
 

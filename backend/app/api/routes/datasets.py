@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.security import require_admin_token
+from app.api.security import request_actor, require_admin_token
 from app.core.config import Settings, get_settings
 from app.db.session import get_db
 from app.schemas.api import DatasetRead, DatasetRegistration, DatasetsResponse
@@ -45,6 +45,7 @@ def register_dataset(
         payload,
         settings=settings,
         request_id=getattr(request.state, "request_id", None),
+        actor=request_actor(request),
     )
     background_tasks.add_task(profile_dataset_asset, row.id)
     return to_dataset_read(row, settings=settings)
@@ -61,14 +62,13 @@ def reprofile_dataset(
     dataset_id: str,
     background_tasks: BackgroundTasks,
     request: Request,
-    actor: str = "local-admin",
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> DatasetRead:
     row = queue_reprofile(
         db,
         dataset_id,
-        actor=actor,
+        actor=request_actor(request),
         request_id=getattr(request.state, "request_id", None),
     )
     background_tasks.add_task(profile_dataset_asset, row.id)
@@ -83,13 +83,12 @@ def reprofile_dataset(
 def remove_dataset_registration(
     dataset_id: str,
     request: Request,
-    actor: str = "local-admin",
     db: Session = Depends(get_db),
 ) -> Response:
     delete_dataset_registration(
         db,
         dataset_id,
-        actor=actor,
+        actor=request_actor(request),
         request_id=getattr(request.state, "request_id", None),
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
