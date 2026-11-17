@@ -5,6 +5,32 @@ All notable changes to EvoNIDS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Flow Transformer (masked feature modeling) implementation: field-token
+  tokenisation with per-field numeric projections and learned field-identity
+  embeddings, a masked-reconstruction objective computed only on masked fields,
+  a CLS-pooled known-attack head and a reconstruction-error anomaly head
+  (`backend/app/ml/flow_transformer.py`).
+- Ablative training CLI (`backend/scripts/train_flow_transformer.py`) covering the
+  blueprint's E03-E05 experiments through flags: `--no-pretrain`,
+  `--no-field-embeddings`, `--mask-rate`, `--d-model` / `--layers`, `--task`.
+  `--smoke` verifies the whole pipeline on synthetic data in seconds, without the
+  dataset or a GPU, and labels its numbers as pipeline-only.
+- Twelve unit tests for the module and the CLI, including mask-invariant checks,
+  a state-dict round trip and a subprocess smoke run that validates the artifact
+  format.
+- `docs/flow-transformer.md`: architecture, masking invariants, ablation mapping
+  and an explicit list of what is still unmeasured.
+
+### Note
+
+Weights for this architecture are **not trained**; no metric from this channel is
+reported anywhere. The shipped measured models remain the HistGradientBoosting
+baseline and the tabular AutoEncoder.
+
 ## [0.1.1] - 2026-09-28
 
 Operational core release: the system grows from a governed detection console

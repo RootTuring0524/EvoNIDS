@@ -11,7 +11,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.1x-009688)
 [![CI](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2FRootTuring0524%2FEvoNIDS%2Fbadge%3Fref%3Dmain&style=flat)](https://github.com/RootTuring0524/EvoNIDS/actions)
 
-> ⚠️ **Honesty statement** — EvoNIDS is a research/teaching system, not a production appliance. The known-attack channel currently runs a deliberately conservative **HistGradientBoosting CPU baseline** and the unknown-anomaly channel runs a **PyTorch AutoEncoder**. The target **Flow Transformer (masked feature modeling)** is planned for v0.2 and is *not* trained yet. Every simulated or degraded path in the UI is explicitly labeled — we never present mock numbers as measured ones.
+> ⚠️ **Honesty statement** — EvoNIDS is a research/teaching system, not a production appliance. The known-attack channel currently runs a deliberately conservative **HistGradientBoosting CPU baseline** and the unknown-anomaly channel runs a **PyTorch AutoEncoder**. The self-supervised **Flow Transformer (masked feature modeling)** is *implemented* — architecture, masking objective, dual downstream heads and an ablative training CLI, all unit-tested — but its **weights are not trained yet** (that needs a GPU and an ADR-0009 evaluation). Every simulated or degraded path in the UI is explicitly labeled — we never present mock numbers as measured ones.
 
 ---
 
@@ -190,7 +190,7 @@ Full numbers and methodology: [MODEL_CARD.md](MODEL_CARD.md). Highlights on the 
 | Model rollout (shadow/canary/active/retired) + audited rollback | ✅ Real, registry-backed |
 | Drift monitoring (PSI/KS + prediction drift) | ✅ Real when a model artifact carries a reference distribution; otherwise `not_measured` |
 | Kubernetes/Helm chart, backup/restore scripts, runbooks | 📄 Written and statically checked; **not executed** here (no Helm/Docker/kubectl on this host) |
-| Flow Transformer / MFM pretraining | 🚧 Planned v0.2 (no GPU used) |
+| Flow Transformer / MFM pretraining | 🧩 Implemented (model + ablative CLI, smoke-tested); weights not trained yet |
 | Console pages without backend/mock agent data | 🔎 Explicitly labeled demo mode |
 
 ## Repository layout
@@ -219,7 +219,7 @@ MODEL_CARD.md / DATA_CARD.md   honest model & dataset documentation
 
 ## Roadmap
 
-- **v0.2** — Flow Transformer (masked feature modeling pretraining + supervised fine-tune) benchmarked against the shipped HGB baseline under the identical split protocol; hybrid vector retrieval; inline inference during ingestion.
+- **v0.2** — Flow Transformer: the architecture, the masked-feature-modeling objective and the ablative training CLI already ship (`backend/app/ml/flow_transformer.py`, `backend/scripts/train_flow_transformer.py`); what remains is GPU training plus an ADR-0009 evaluation against the HGB baseline under the identical split protocol, hybrid vector retrieval and inline inference during ingestion.
 - **v0.3** — durable training/validation job queue, UNSW-NB15 cross-dataset evaluation, multi-sensor federation.
 - **v0.4** — concept drift monitoring, active-learning sample queue, pluggable model providers.
 

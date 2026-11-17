@@ -42,6 +42,23 @@ The tables below report the newer full-dataset run.
 | Threshold | `0.033349` = validation-set reconstruction-error quantile 0.95, chosen for a 5% target FPR |
 | Artifact SHA-256 | `fe70ff2653b5774a4cffab4a3736f44cc04b0ca3083a75cef7433b171bed6ac2` |
 
+### Planned channel — Flow Transformer (implemented, not trained)
+
+The self-supervised Flow Transformer described in the design documents now exists
+as code: field tokenisation (per-field numeric projection + learned field-identity
+embeddings), a masked-feature-modeling objective computed only on masked fields, a
+CLS-pooled known-attack head and a reconstruction-error anomaly head, plus an
+ablative training CLI (`backend/scripts/train_flow_transformer.py`). The module and
+the pipeline are covered by unit tests, including a subprocess smoke run that
+writes a real artifact.
+
+**No weights are trained yet.** This card therefore reports nothing for this
+channel: there is no measured macro-F1, no AUROC, no per-class recall and no
+comparison against the shipped HGB baseline. Training requires a GPU (or several
+CPU-days) and must be evaluated under the ADR-0009 protocol before any number from
+this channel may be quoted. Until then the two trained channels above remain the
+only measured models in the project, and online detection stays in `shadow` mode.
+
 ## Intended Use
 
 - **Intended:** security research, coursework and teaching, local demonstration of the
