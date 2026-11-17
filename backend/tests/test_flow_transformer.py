@@ -165,6 +165,20 @@ def test_category_mask_slot_matches_embedding_table():
         assert model.categorical_embeddings[index].num_embeddings == cardinality + 1
 
 
+def _run_smoke(args, *, expect_success: bool = True):
+    backend_root = Path(__file__).resolve().parent.parent
+    result = subprocess.run(
+        [sys.executable, "scripts/train_flow_transformer.py", *args],
+        cwd=backend_root, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"}, timeout=600,
+    )
+    if expect_success:
+        assert result.returncode == 0, f"smoke run failed:\nSTDOUT:\n{result.stdout[-2000:]}\nSTDERR:\n{result.stderr[-2000:]}"
+    else:
+        assert result.returncode != 0, "the run was expected to fail"
+    return result
+
+
 def test_training_script_smoke_run_writes_an_artifact(tmp_path):
     """End-to-end: the CLI trains on synthetic data and writes a usable artifact."""
 
@@ -202,8 +216,55 @@ def test_training_script_smoke_run_writes_an_artifact(tmp_path):
 
     payload = json.loads(metadata.read_text(encoding="utf-8"))
     assert payload["algorithm"] == "flow_transformer_mfm"
+    assert payload["task"] == "flow_transformer_mfm"
     assert payload["featureVersion"] == "tabular-mfm-v1"
     assert payload["architecture"]["use_field_embeddings"] is True
     assert payload["ablations"]["pretrained"] is True
     assert payload["metrics"]["testSamples"] > 0
     assert "note" in payload["metrics"], "a smoke run must label its numbers as pipeline-only"
+
+
+def test_anomaly_task_calibrates_a_frozen_threshold(tmp_path):
+    """E05: the anomaly channel must report a calibrated operating point, not a guess."""
+
+    output_dir = tmp_path / "flow-transformer-anomaly"
+    result = _run_smoke(
+        [
+            "--smoke",
+            "--task", "anomaly",
+            "--target-fpr", "0.1",
+            "--d-model", "16",
+            "--layers", "1",
+            "--heads", "2",
+            "--feedforward", "32",
+            "--pretrain-epochs", "1",
+            "--batch-size", "64",
+            "--output-dir", str(output_dir),
+        ]
+    )
+    assert "task=anomaly" in result.stdout
+    assert "[anomaly]" in result.stdout, "the run must print the calibrated threshold"
+
+    payload = json.loads((output_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert payload["task"] == "flow_transformer_anomaly"
+    assert payload["ablations"]["task"] == "anomaly"
+    operating_point = payload["operatingPoint"]
+    assert operating_point["targetFpr"] == 0.1
+    assert operating_point["threshold"] > 0
+    assert operating_point["calibratedOn"].startswith("validation-split")
+
+    metrics = payload["metrics"]
+    for key in ("auroc", "auprc", "attackRecall", "precision", "f1", "normalFpr", "perClassDetectionRate"):
+        assert key in metrics, f"anomaly metrics must report {key}"
+    # The anomaly channel has no supervised classifier, so it must not claim one.
+    assert "macroF1" not in metrics
+
+
+def test_anomaly_task_requires_pretraining(tmp_path):
+    """Scoring rows by reconstruction error is meaningless without the MFM objective."""
+
+    result = _run_smoke(
+        ["--smoke", "--task", "anomaly", "--no-pretrain", "--output-dir", str(tmp_path / "never")],
+        expect_success=False,
+    )
+    assert "needs MFM pretraining" in (result.stderr + result.stdout)

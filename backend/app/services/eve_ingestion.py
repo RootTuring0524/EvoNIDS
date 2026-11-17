@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -9,7 +10,7 @@ from typing import Any
 from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import Alert, Flow, IngestionBatch, Sensor
+from app.db.models import Alert, AuditEvent, Flow, IngestionBatch, Sensor
 from app.db.base import utc_now
 from app.domain.features import FEATURE_VERSION
 from app.domain.flow_features import (
@@ -59,6 +60,64 @@ class IngestOutcome:
         }
 
 
+def _audit_ingestion(
+    db: Session,
+    *,
+    sensor_id: str,
+    outcome: IngestOutcome,
+    detection: dict[str, Any],
+    channel: str,
+    payload_bytes: int,
+    request_id: str | None,
+    workspace_id: str,
+) -> None:
+    """Record one audited event per ingestion batch.
+
+    Ingestion is the only data-plane write in the system: it creates flows and
+    alerts that every later decision is based on. Until v0.1.2 it left no audit
+    trail at all — only counters on the Sensor row — so a malformed or poisoned
+    import could not be traced afterwards. The chain is maintained by the
+    ``AuditEvent`` mapper hook, so a plain ``db.add`` is enough.
+    """
+
+    if outcome.rejected == 0:
+        status = "completed"
+    elif outcome.accepted == 0:
+        status = "rejected"
+    else:
+        status = "partial"
+    first_failure = outcome.failures[0].line_number if outcome.failures else None
+    db.add(
+        AuditEvent(
+            id=f"AUD-{uuid.uuid4().hex.upper()}",
+            created_at=utc_now(),
+            actor=f"sensor:{sensor_id}",
+            action="ingestion.eve_batch",
+            object_type="sensor",
+            object_id=sensor_id,
+            outcome=status,
+            request_id=request_id,
+            before_state=None,
+            after_state={
+                "channel": channel,
+                "payloadBytes": payload_bytes,
+                "acceptedEvents": outcome.accepted,
+                "createdFlows": outcome.created_flows,
+                "createdAlerts": outcome.created_alerts,
+                "duplicateEvents": outcome.duplicates,
+                "rejectedEvents": outcome.rejected,
+                "detectionMode": detection.get("mode"),
+                "degraded": detection.get("degraded"),
+            },
+            note=(
+                f"{channel}: {outcome.accepted} accepted, {outcome.rejected} rejected"
+                + (f" (first failure at line {first_failure})" if first_failure is not None else "")
+            ),
+            workspace_id=workspace_id,
+        )
+    )
+
+
 def ingest_eve_text(
     db: Session,
     *,
@@ -66,6 +125,7 @@ def ingest_eve_text(
     content: str,
     detection_mode: DetectionMode = "shadow",
     workspace_id: str = DEFAULT_WORKSPACE,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     received_at = utc_now()
     sensor = _ensure_sensor(db, sensor_id)
@@ -82,6 +142,16 @@ def ingest_eve_text(
     )
     detection = _apply_detection(db, outcome, mode=detection_mode)
     _update_sensor_metadata(sensor, outcome)
+    _audit_ingestion(
+        db,
+        sensor_id=sensor_id,
+        outcome=outcome,
+        detection=detection,
+        channel="eve-import",
+        payload_bytes=len(content.encode("utf-8")),
+        request_id=request_id,
+        workspace_id=workspace_id,
+    )
     db.commit()
     response = outcome.as_response()
     response["sensor_id"] = sensor_id
@@ -175,6 +245,16 @@ def ingest_eve_batch(
                 "detection": detection,
             },
         )
+    )
+    _audit_ingestion(
+        db,
+        sensor_id=sensor_id,
+        outcome=outcome,
+        detection=detection,
+        channel="collector-batch",
+        payload_bytes=payload_bytes,
+        request_id=None,
+        workspace_id=workspace_id,
     )
     db.commit()
     response = outcome.as_response()

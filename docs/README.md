@@ -9,11 +9,13 @@
 | [deployment.md](deployment.md)（含"集群部署与备份恢复"章节）、[runbooks/](runbooks/) | 中文 | 单机 Compose 生产部署；Kubernetes/Helm chart（`deploy/helm/evonids/`）、备份脚本（`scripts/backup/`）与中文故障/演练手册（`docs/runbooks/`）的统一入口。 |
 | [collector.md](collector.md) | 中文 | Suricata EVE 采集器的部署、幂等批次、spool/dead-letter 失败语义、指标与安全要求。 |
 | [flow-transformer.md](flow-transformer.md) | 中文 | Flow Transformer（掩码特征建模）架构、掩码目标与不变量、双下游头、消融开关与蓝皮书 E03–E05 的对应关系、运行方式，以及目前明确未测量的内容。 |
+| [experiments.md](experiments.md) | 中文 | E01–E10 实验登记表（由 `backend/scripts/run_experiments.py` 生成）：环境探测、每个实验的可运行状态与确切命令、已测量结果及其数据集来源；未运行即标注，不写猜测数字。 |
 | [model-evaluation.md](model-evaluation.md) | 中文 | 模型评估协议操作手册（时间外/主机留出/家族留出/随机切分、校准、漂移、未测量清单）。 |
 | [adr/0008-ingestion-transport-and-hot-path-storage.md](adr/0008-ingestion-transport-and-hot-path-storage.md) | 中文 | 采集传输与热路径存储决策：本期 spool + 批次账本，NATS JetStream/ClickHouse/MinIO 的引入触发条件与迁移路径。 |
 | [adr/0009-model-evaluation-protocol.md](adr/0009-model-evaluation-protocol.md) | 中文 | 模型评估协议：CICIDS2017 随机切分不构成生产证据，强制四种切分与未测量禁 0。 |
 | [adr/0010-online-detection-and-fusion.md](adr/0010-online-detection-and-fusion.md) | 中文 | 在线检测与可解释风险融合：`flow-online-v1` 特征契约、通道信号/融合评估分离、shadow 默认与开启条件。 |
 | [adr/0012-rule-ir-and-suricata-sandbox.md](adr/0012-rule-ir-and-suricata-sandbox.md) | 中文 | 规则 IR、确定性 Suricata 编译、真实沙箱回放与灰度/回滚门禁。 |
+| [releases/v0.1.2.md](releases/v0.1.2.md) | 中文 | v0.1.2 发布说明：证据链闭合、摄取审计、Transformer 异常通道、实验登记表，以及自 0.1.0 以来的累计版本线与未解决限制。 |
 | [releases/v0.1.1.md](releases/v0.1.1.md) | 中文 | v0.1.1 发布说明（已发布）：真实测量结果、未测量清单、升级与回滚步骤。 |
 | [adr/0013-oidc-rbac-and-tenants.md](adr/0013-oidc-rbac-and-tenants.md) | 中文 | OIDC 身份验证、RBAC 权限矩阵、租户/工作区隔离与审计哈希链（含离线校验）。 |
 | [security/threat-model.md](security/threat-model.md) | 中文 | 正式威胁模型：12 类威胁 × 资产/路径/现有缓解/残余风险/未实现项。 |

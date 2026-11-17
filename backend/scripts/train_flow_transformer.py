@@ -13,7 +13,9 @@ flag                         ablation it enables
 ``--no-field-embeddings``    drop Field-ID embeddings (field identity ablation)
 ``--mask-rate``              0.10 / 0.15 / 0.20 / 0.30 sweep
 ``--d-model``/``--layers``   capacity sweep, reported together with inference time
-``--task anomaly``           E05: reconstruction-error anomaly channel only
+``--task anomaly``           E05: reconstruction-error anomaly channel *only* — no
+                             supervised head, threshold calibrated on the validation
+                             split at ``--target-fpr``, recall/FPR measured there
 ===========================  =====================================================
 
 Honesty rules borrowed from the rest of the repository:
@@ -70,7 +72,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mask-rate", type=float, default=0.15)
     parser.add_argument("--no-field-embeddings", action="store_true")
     parser.add_argument("--no-pretrain", action="store_true", help="skip MFM; supervised training only (ablation)")
-    parser.add_argument("--task", choices=("classification", "anomaly"), default="classification")
+    parser.add_argument("--task", choices=("classification", "anomaly"), default="classification",
+                        help="classification fine-tunes the known-attack head; anomaly uses MFM only "
+                             "and calibrates a threshold on validation reconstruction error")
+    parser.add_argument("--target-fpr", type=float, default=0.05,
+                        help="anomaly task: normal-traffic false-positive rate the threshold targets")
     parser.add_argument("--pretrain-epochs", type=int, default=20)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=512)
@@ -258,6 +264,12 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
             pretrain_losses.append(total / max(seen, 1))
             print(f"[pretrain {epoch}/{args.pretrain_epochs}] mfm_loss={pretrain_losses[-1]:.4f}", flush=True)
 
+    if args.task == "anomaly" and not pretrain_losses:
+        raise SystemExit(
+            "the anomaly task scores rows by reconstruction error, so it needs MFM pretraining: "
+            "drop --no-pretrain and set --pretrain-epochs > 0"
+        )
+
     def accuracy(dataset: Dataset) -> tuple[float, list[float]]:
         model.eval()
         with torch.no_grad():
@@ -270,43 +282,34 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
                 recalls.append(float((predicted[mask] == label).mean()))
         return float((predicted == dataset.y).mean()), recalls
 
-    # Class-weighted CE keeps rare attack families (Heartbleed, Web XSS) from being
-    # erased by the benign majority, mirroring the HGB baseline's class handling.
-    class_weights = torch.tensor(
-        [1.0 / max(1, int((train_set.y == label).sum())) for label in range(len(train_set.classes))],
-        dtype=torch.float32,
-    )
-    class_weights = class_weights / class_weights.sum() * len(class_weights)
-
     finetune_losses: list[float] = []
-    for epoch in range(1, args.epochs + 1):
-        model.train()
-        total, seen = 0.0, 0
-        for index in batches(len(y_all), args.batch_size):
-            x_num = x_num_all[index]
-            x_cat = x_cat_all[index] if x_cat_all is not None else None
-            logits = model(x_num, x_cat)["class_logits"]
-            loss = torch.nn.functional.cross_entropy(logits, y_all[index], weight=class_weights)
-            optimiser.zero_grad()
-            loss.backward()
-            optimiser.step()
-            total += float(loss.detach()) * len(index)
-            seen += len(index)
-        finetune_losses.append(total / max(seen, 1))
-        print(f"[finetune {epoch}/{args.epochs}] ce_loss={finetune_losses[-1]:.4f}", flush=True)
+    if args.task == "classification":
+        # Class-weighted CE keeps rare attack families (Heartbleed, Web XSS) from
+        # being erased by the benign majority, mirroring the HGB baseline.
+        class_weights = torch.tensor(
+            [1.0 / max(1, int((train_set.y == label).sum())) for label in range(len(train_set.classes))],
+            dtype=torch.float32,
+        )
+        class_weights = class_weights / class_weights.sum() * len(class_weights)
 
-    val_accuracy, val_recalls = accuracy(val_set)
-    test_accuracy, test_recalls = accuracy(test_set)
-    macro_f1 = _macro_f1(model, test_set)
-    anomaly_auroc = _anomaly_auroc(model, test_set, len(data.classes))
+        for epoch in range(1, args.epochs + 1):
+            model.train()
+            total, seen = 0.0, 0
+            for index in batches(len(y_all), args.batch_size):
+                x_num = x_num_all[index]
+                x_cat = x_cat_all[index] if x_cat_all is not None else None
+                logits = model(x_num, x_cat)["class_logits"]
+                loss = torch.nn.functional.cross_entropy(logits, y_all[index], weight=class_weights)
+                optimiser.zero_grad()
+                loss.backward()
+                optimiser.step()
+                total += float(loss.detach()) * len(index)
+                seen += len(index)
+            finetune_losses.append(total / max(seen, 1))
+            print(f"[finetune {epoch}/{args.epochs}] ce_loss={finetune_losses[-1]:.4f}", flush=True)
+
     inference_ms = _inference_ms(model, test_set)
-
-    metrics = {
-        "valAccuracy": round(val_accuracy, 6),
-        "testAccuracy": round(test_accuracy, 6),
-        "macroF1": round(macro_f1, 6),
-        "perClassRecall": {name: round(value, 6) for name, value in zip(data.classes, test_recalls, strict=False)},
-        "anomalyAuroc": None if anomaly_auroc is None else round(anomaly_auroc, 6),
+    common_metrics = {
         "inferenceMsPerBatch": round(inference_ms, 3),
         "trainSamples": int(len(train_set.y)),
         "valSamples": int(len(val_set.y)),
@@ -314,6 +317,25 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "featureCount": len(data.numeric_features) + len(data.categorical_features),
         "trainingSeconds": round(time.perf_counter() - started, 1),
     }
+
+    if args.task == "anomaly":
+        # The anomaly channel never sees attack labels: the threshold is a quantile
+        # of the validation split's normal reconstruction error, and the numbers
+        # below are measured at that frozen threshold.
+        operating_point = _anomaly_operating_point(model, val_set, test_set, target_fpr=args.target_fpr)
+        metrics = {**operating_point, "targetFpr": args.target_fpr, **common_metrics}
+    else:
+        val_accuracy, _ = accuracy(val_set)
+        test_accuracy, test_recalls = accuracy(test_set)
+        anomaly_auroc = _anomaly_auroc(model, test_set, len(data.classes))
+        metrics = {
+            "valAccuracy": round(val_accuracy, 6),
+            "testAccuracy": round(test_accuracy, 6),
+            "macroF1": round(_macro_f1(model, test_set), 6),
+            "perClassRecall": {name: round(value, 6) for name, value in zip(data.classes, test_recalls, strict=False)},
+            "anomalyAuroc": None if anomaly_auroc is None else round(anomaly_auroc, 6),
+            **common_metrics,
+        }
     if args.smoke:
         metrics["note"] = "smoke run on synthetic data: numbers verify the pipeline, not model quality"
 
@@ -328,6 +350,83 @@ def train(args: argparse.Namespace) -> dict[str, Any]:
         "pretrainLosses": pretrain_losses,
         "finetuneLosses": finetune_losses,
         "smoke": args.smoke,
+    }
+
+
+def _anomaly_operating_point(
+    model: Any,
+    val_set: Dataset,
+    test_set: Dataset,
+    *,
+    target_fpr: float,
+) -> dict[str, Any]:
+    """Freeze a threshold on validation errors, then measure it on the test split.
+
+    This is the only honest way to report an anomaly channel: the threshold never
+    sees the test set, the achieved normal FPR is reported next to the target, and
+    per-class detection rates expose the families the reconstruction error misses.
+    """
+
+    import numpy as np
+    import torch
+
+    def errors_of(dataset: Dataset) -> Any:
+        model.eval()
+        with torch.no_grad():
+            return model.reconstruction_error(
+                torch.from_numpy(dataset.x_num),
+                torch.from_numpy(dataset.x_cat) if dataset.x_cat.shape[1] else None,
+            ).numpy()
+
+    # split_dataset sorts classes, so index 0 is the alphabetically first label
+    # ("BENIGN" for CICIDS); every attack row counts as positive.
+    benign_label = 0
+    val_errors = errors_of(val_set)
+    val_normal = val_errors[val_set.y == benign_label]
+    if len(val_normal) == 0:
+        raise SystemExit("the validation split has no normal rows; cannot calibrate an anomaly threshold")
+    threshold = float(np.quantile(val_normal, 1.0 - target_fpr))
+
+    test_errors = errors_of(test_set)
+    predicted = test_errors > threshold
+    truth = test_set.y != benign_label
+    true_positive = int((predicted & truth).sum())
+    false_positive = int((predicted & ~truth).sum())
+    false_negative = int((~predicted & truth).sum())
+    true_negative = int((~predicted & ~truth).sum())
+    recall = true_positive / (true_positive + false_negative) if true_positive + false_negative else 0.0
+    precision = true_positive / (true_positive + false_positive) if true_positive + false_positive else 0.0
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+    normal_fpr = false_positive / (false_positive + true_negative) if false_positive + true_negative else 0.0
+    per_class = {
+        name: round(float(predicted[test_set.y == index].mean()), 6)
+        for index, name in enumerate(test_set.classes)
+        if (test_set.y == index).any()
+    }
+    auroc: float | None
+    auprc: float | None
+    try:
+        from sklearn.metrics import average_precision_score, roc_auc_score
+
+        auroc = round(float(roc_auc_score(truth.astype(int), test_errors)), 6)
+        auprc = round(float(average_precision_score(truth.astype(int), test_errors)), 6)
+    except Exception:  # noqa: BLE001 - if the metric cannot be computed it stays unmeasured
+        auroc = auprc = None
+
+    print(
+        f"[anomaly] threshold={threshold:.6f} (validation q{1 - target_fpr:.2f}) "
+        f"auroc={auroc} auprc={auprc} recall={recall:.4f} fpr={normal_fpr:.4f}",
+        flush=True,
+    )
+    return {
+        "threshold": threshold,
+        "auroc": auroc,
+        "auprc": auprc,
+        "attackRecall": round(recall, 6),
+        "precision": round(precision, 6),
+        "f1": round(f1, 6),
+        "normalFpr": round(normal_fpr, 6),
+        "perClassDetectionRate": per_class,
     }
 
 
@@ -409,9 +508,15 @@ def write_artifact(args: argparse.Namespace, result: dict[str, Any]) -> Path:
 
     config = result["config"]
     data = result["data"]
+    metrics = result["metrics"]
+    task = (
+        "flow_transformer_anomaly"
+        if args.task == "anomaly"
+        else ("flow_transformer_mfm" if not args.no_pretrain else "flow_transformer_supervised")
+    )
     payload = {
         "formatVersion": 1,
-        "task": "flow_transformer_mfm" if not args.no_pretrain else "flow_transformer_supervised",
+        "task": task,
         "algorithm": "flow_transformer_mfm",
         "featureVersion": "tabular-mfm-v1",
         "architecture": config.to_dict(),
@@ -420,8 +525,21 @@ def write_artifact(args: argparse.Namespace, result: dict[str, Any]) -> Path:
         "classes": data.classes,
         "standardisation": {"mean": result["mean"], "std": result["std"]},
         "modelState": state_dict_to_payload(result["model"]),
-        "metrics": result["metrics"],
+        "metrics": metrics,
         "lossCurves": {"pretrain": result["pretrainLosses"], "finetune": result["finetuneLosses"]},
+        # An anomaly artifact carries the frozen threshold and the split it was
+        # calibrated on, so a later evaluation cannot silently re-tune it.
+        **(
+            {
+                "operatingPoint": {
+                    "threshold": metrics["threshold"],
+                    "targetFpr": metrics["targetFpr"],
+                    "calibratedOn": "validation-split normal reconstruction error",
+                }
+            }
+            if args.task == "anomaly"
+            else {}
+        ),
         "ablations": {
             "pretrained": not args.no_pretrain,
             "fieldEmbeddings": not args.no_field_embeddings,
@@ -448,8 +566,12 @@ def main() -> None:
     result = train(args)
     write_artifact(args, result)
     if args.smoke:
-        assert math.isfinite(result["metrics"]["macroF1"]), "smoke run produced a non-finite metric"
-        print("[complete] smoke run finished: pipeline, ablation flags and artifact format are wired", flush=True)
+        key = "macroF1" if args.task == "classification" else "attackRecall"
+        assert math.isfinite(result["metrics"][key]), f"smoke run produced a non-finite {key}"
+        print(
+            f"[complete] smoke run finished: task={args.task}, pipeline, ablation flags and artifact format are wired",
+            flush=True,
+        )
 
 
 if __name__ == "__main__":

@@ -5,6 +5,59 @@ All notable changes to EvoNIDS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-11-17
+
+Governance and reproducibility patch. Three gaps that the v0.1.1 audit had recorded —
+and one defect introduced by the Flow Transformer landing — are closed here; no
+existing behaviour changes and no metric is re-baselined.
+
+### Fixed
+
+- **Rule candidates may no longer cite evidence the platform cannot resolve.**
+  `POST /rules` validated only that `evidence_ids` was non-empty, so a candidate could
+  reference a fabricated identifier and the immutable rule version would point at a
+  record that never existed (verified end to end: an invented `EV-KNOWLEDGE-001` was
+  accepted). Evidence must now exist, be `allowed`, and carry no prompt-injection risk;
+  otherwise the request fails with `422` naming the offending identifiers. Tests cover
+  the accepted, unknown and quarantined cases and assert that a rejected attempt leaves
+  no rule behind.
+- **EVE ingestion is audited.** Ingestion is the only data-plane write in the system —
+  it creates the flows and alerts every later decision depends on — yet it left no
+  audit trail at all, only counters on the `Sensor` row. Both the HTTP import and the
+  collector batch path now append one `ingestion.eve_batch` event per batch with the
+  channel, payload size, per-outcome counts, detection mode and degradation flag, so a
+  malformed or poisoned import is traceable through the same hash-chained audit log as
+  every other mutation.
+- **`--task anomaly` now trains the anomaly channel it claims to train.** The flag was
+  accepted and recorded in the artifact metadata but the run still executed the
+  supervised classification path. The anomaly task now pretrains with MFM only,
+  freezes a threshold on the **validation** split's normal reconstruction error at
+  `--target-fpr`, and reports AUROC, AUPRC, attack recall, precision, F1, achieved
+  normal FPR and per-class detection rates measured at that frozen threshold. Scoring by
+  reconstruction error without pretraining is rejected with an explicit error instead of
+  producing a meaningless model.
+
+### Added
+
+- **E01-E10 experiment registry** (`backend/scripts/run_experiments.py`). One artefact
+  answers "which experiments exist, which are runnable on this machine, and what was
+  actually measured": readiness is probed from the environment (dataset, PyTorch,
+  Suricata binary, LLM key), unexecuted experiments are reported as `ready` or
+  `blocked: needs …` with their exact command, and `--run` executes the Transformer
+  family (E03-E05) and records the measured metrics together with the dataset that
+  produced them. `docs/experiments.md` is generated output — it currently reports
+  `measured=0 of 10`, which is the truth on a machine without Suricata or an embedding
+  key.
+- Two Flow Transformer tests for the anomaly task: the calibrated operating point
+  (threshold, target FPR, per-class detection rates, and the absence of a fabricated
+  `macroF1`) and the refusal to run the anomaly task without pretraining.
+
+### Changed
+
+- Version bumped to 0.1.2 across `project/package.json`, `backend/pyproject.toml`,
+  `CITATION.cff`, the collector agent version and the outbound integration/gateway user
+  agents. The Flow Transformer remains the v0.2 goal; its weights are still untrained.
+
 ## [Unreleased]
 
 ### Added

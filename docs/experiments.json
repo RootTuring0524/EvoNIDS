@@ -1,0 +1,146 @@
+{
+  "environment": {
+    "dataset": true,
+    "datasetPath": "backend/datasets/CICIDS2017/cicids2017_pcap_flow_full_v1.csv.gz",
+    "torch": true,
+    "suricata": false,
+    "llm-key": false
+  },
+  "experiments": [
+    {
+      "id": "E01",
+      "title": "Known-attack classification, strong tabular baseline",
+      "hypothesis": "A tuned gradient-boosted baseline sets the number any deep model must beat.",
+      "measures": "macro-F1, per-class recall, PR-AUC, confusion matrix",
+      "status": "ready",
+      "requires": [
+        "dataset"
+      ],
+      "command": "python scripts/train_full_baseline.py --csv <dataset>",
+      "note": "Measured numbers live in MODEL_CARD.md (full_v1 run).",
+      "metrics": null
+    },
+    {
+      "id": "E02",
+      "title": "Unknown-anomaly baseline (tabular AutoEncoder)",
+      "hypothesis": "Reconstruction error trained on benign traffic separates unseen attacks.",
+      "measures": "AUROC, AUPRC, recall at fixed FPR, normal FPR",
+      "status": "ready",
+      "requires": [
+        "dataset",
+        "torch"
+      ],
+      "command": "python scripts/train_full_autoencoder.py --csv <dataset>",
+      "note": "Measured numbers live in MODEL_CARD.md (AUROC 0.9042).",
+      "metrics": null
+    },
+    {
+      "id": "E03",
+      "title": "Flow Transformer without pretraining",
+      "hypothesis": "The architecture alone, with no MFM signal, is the honest floor.",
+      "measures": "macro-F1, per-class recall",
+      "status": "ready",
+      "requires": [
+        "dataset",
+        "torch"
+      ],
+      "command": "python scripts/train_flow_transformer.py --csv <dataset> --no-pretrain --d-model 64 --layers 2 --heads 4",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E04",
+      "title": "MFM pretraining + classification head",
+      "hypothesis": "Self-supervised pretraining improves the same architecture (E03 vs E04).",
+      "measures": "macro-F1, per-class recall, delta against E03",
+      "status": "ready",
+      "requires": [
+        "dataset",
+        "torch"
+      ],
+      "command": "python scripts/train_flow_transformer.py --csv <dataset> --pretrain-epochs 20 --epochs 10",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E05",
+      "title": "MFM pretraining + anomaly head only",
+      "hypothesis": "Reconstruction error from the shared encoder is a usable anomaly channel.",
+      "measures": "AUROC, AUPRC, recall at fixed FPR, normal FPR",
+      "status": "ready",
+      "requires": [
+        "dataset",
+        "torch"
+      ],
+      "command": "python scripts/train_flow_transformer.py --csv <dataset> --task anomaly --target-fpr 0.05 --pretrain-epochs 20",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E06",
+      "title": "Dual-channel risk fusion",
+      "hypothesis": "Classification and anomaly channels are complementary, not redundant.",
+      "measures": "fusion precision/recall against each channel alone",
+      "status": "ready",
+      "requires": [
+        "dataset",
+        "torch"
+      ],
+      "command": "python scripts/backfill_dual_channel_inference.py --dataset <dataset>",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E07",
+      "title": "Open-set evaluation by attack family",
+      "hypothesis": "Family holdout is the only defensible measure of 'unknown attack' ability.",
+      "measures": "unknown-family recall, AUROC, AUPRC, recall at fixed FPR",
+      "status": "ready",
+      "requires": [
+        "dataset"
+      ],
+      "command": "python scripts/evaluate_model_splits.py --strategy family_holdout",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E08",
+      "title": "Out-of-time and cross-host generalisation",
+      "hypothesis": "Random splits overstate performance; time and host holdouts expose it.",
+      "measures": "macro-F1, per-class recall per split strategy",
+      "status": "ready",
+      "requires": [
+        "dataset"
+      ],
+      "command": "python scripts/evaluate_model_splits.py --strategy time_holdout,group_holdout",
+      "note": "",
+      "metrics": null
+    },
+    {
+      "id": "E09",
+      "title": "Rule replay and benign regression under real Suricata",
+      "hypothesis": "LLM-authored rules only earn trust by passing a real engine and PCAP replay.",
+      "measures": "target hits, benign false positives, load-test result",
+      "status": "blocked: needs the Suricata binary on PATH",
+      "requires": [
+        "suricata"
+      ],
+      "command": "python -m app.services.rule_sandbox --help",
+      "note": "Needs the Suricata binary and an annotated PCAP corpus; recorded as blocked until then.",
+      "metrics": null
+    },
+    {
+      "id": "E10",
+      "title": "RAG citation correctness",
+      "hypothesis": "The Agent's rules must cite retrievable, permitted knowledge.",
+      "measures": "Recall@K, MRR, citation correctness, refusal rate",
+      "status": "blocked: needs an LLM/embedding provider key",
+      "requires": [
+        "llm-key"
+      ],
+      "command": "python -m app.services.knowledge_retrieval --help",
+      "note": "Needs a real embedding/LLM provider; the default hashing embedder is lexical only.",
+      "metrics": null
+    }
+  ]
+}

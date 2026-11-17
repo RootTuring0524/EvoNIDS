@@ -9,7 +9,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
 from app.db.base import utc_now
-from app.db.models import Alert, AuditEvent, Flow, Rule, RuleValidation, RuleVersion
+from app.db.models import Alert, AuditEvent, Flow, KnowledgeEvidence, Rule, RuleValidation, RuleVersion
 from app.domain.rules import (
     RuleCondition as DomainCondition,
     RuleValidationError,
@@ -51,6 +51,43 @@ EMPTY_METRICS = {
 }
 
 
+def _require_linkable_evidence(db: Session, evidence_ids: list[str]) -> None:
+    """Refuse candidates whose evidence the platform cannot resolve.
+
+    ``structural_checks`` only asserts that evidence identifiers are present. Until
+    v0.1.2 that meant a candidate could cite a fabricated identifier and the
+    immutable rule version would then reference a record that never existed
+    (verified end to end: an invented ``EV-KNOWLEDGE-001`` was accepted). Evidence
+    that exists but is blocked or carries prompt-injection risk is rejected too —
+    a rule must not be justified by knowledge the Agent itself may not read.
+    """
+
+    unique_ids = list(dict.fromkeys(evidence_ids))
+    if not unique_ids:
+        return
+    rows = db.scalars(select(KnowledgeEvidence).where(KnowledgeEvidence.id.in_(unique_ids))).all()
+    found = {row.id: row for row in rows}
+    missing = [evidence_id for evidence_id in unique_ids if evidence_id not in found]
+    if missing:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Evidence identifiers do not exist: {', '.join(missing)}",
+        )
+    unusable = [
+        evidence_id
+        for evidence_id in unique_ids
+        if not found[evidence_id].allowed or found[evidence_id].prompt_injection_risk != "none"
+    ]
+    if unusable:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Evidence must be allowed and free of prompt-injection risk: "
+                + ", ".join(unusable)
+            ),
+        )
+
+
 def create_candidate(
     db: Session,
     payload: RuleCandidateCreate,
@@ -70,6 +107,7 @@ def create_candidate(
     failed = [check.note for check in checks if not check.passed]
     if failed:
         raise HTTPException(status_code=422, detail="; ".join(failed))
+    _require_linkable_evidence(db, structured.evidence_ids)
 
     now = utc_now()
     version_id = _version_id(structured.rule_id, structured.version)

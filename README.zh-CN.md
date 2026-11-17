@@ -205,6 +205,8 @@ MODEL_CARD.md / DATA_CARD.md   诚实的模型与数据集文档
 - DeepSeek 凭据与管理员/传感器令牌**仅存服务端**；浏览器永远接触不到。`.env` 已被 git 忽略——只提交模板。
 - EVE 摄取有上限（单文件 10 MiB）、逐行容错、按事件身份幂等去重。开发环境之外，传感器与管理员令牌强制启用。
 - 不可信知识文本在进入 Agent 之前经提示注入标记检测强制隔离（启发式，非完备防线）；Agent 的证据 ID 由服务端对照可信子集校验。
+- 候选规则只能引用平台可解析的证据：ID 必须存在、allowed 且无提示注入风险，否则 `POST /rules` 返回 422——规则版本不再可能指向从未存在的证据。
+- EVE 摄取每批次追加一条哈希链审计事件（通道、载荷大小、accepted/created/duplicate/rejected、检测模式、是否降级），畸形或被投毒的导入与其他写操作一样可追溯。
 - 控制台登录认证为**可选且默认关闭**。设置 `NUXT_CONSOLE_PASSWORD` 即启用：`POST /api/auth/login` 用口令换取签名 HttpOnly 会话 Cookie（`NUXT_CONSOLE_SESSION_HOURS` 控制会话时长，默认 24 小时），此后除登录页外，所有页面与 `/api/**` BFF 路由都要求登录。
 - 不设置 `NUXT_CONSOLE_PASSWORD` 时控制台保持开放——适用于本机开发与演示场景。该口令是防止"任何能访问该端口的人直接操作规则部署或训练"的最低门槛，并不能替代正式部署中的 TLS 反向代理。
 - 演示数据集是公开的 CICIDS2017 研究抓包——不含任何真实组织流量。见 [DATA_CARD.md](DATA_CARD.md)。

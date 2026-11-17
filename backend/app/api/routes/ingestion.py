@@ -35,7 +35,11 @@ async def ingest_eve(
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=400, detail="EVE payload must be UTF-8 NDJSON") from exc
     result = ingest_eve_text(
-        db, sensor_id=sensor_id, content=content, detection_mode=parse_mode(get_settings().detection_mode)
+        db,
+        sensor_id=sensor_id,
+        content=content,
+        detection_mode=parse_mode(get_settings().detection_mode),
+        request_id=getattr(request.state, "request_id", None),
     )
     return EveIngestionResponse.model_validate(result)
 

@@ -20,6 +20,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
 from app.main import app  # noqa: E402
+from app.db.models import AuditEvent  # noqa: E402
+from app.db.session import SessionLocal  # noqa: E402
+from sqlalchemy import select  # noqa: E402
 
 # Effective (already frozen) settings: another module may have been imported
 # first, so the environment writes above are only a best effort. Using the
@@ -320,6 +323,40 @@ def test_health_ingestion_and_read_contracts():
         )
         assert benign_import.status_code == 200
         assert benign_import.json()["createdFlows"] == 1
+
+        # Ingestion writes one audit event per batch since v0.1.2. It is the only
+        # data-plane write in the system, and before that it left no trace beyond
+        # counters on the Sensor row, so a poisoned import could not be traced.
+        with SessionLocal() as audit_db:
+            ingestion_event = audit_db.scalars(
+                select(AuditEvent)
+                .where(AuditEvent.action == "ingestion.eve_batch")
+                .order_by(AuditEvent.created_at.desc())
+            ).first()
+            assert ingestion_event is not None
+            assert ingestion_event.actor == "sensor:lab-core-01"
+            assert ingestion_event.object_type == "sensor"
+            assert ingestion_event.after_state["createdFlows"] >= 1
+            assert ingestion_event.after_state["channel"] == "eve-import"
+
+        # The candidate below cites this evidence, and since v0.1.2 an evidence ID
+        # must resolve to a real, allowed, injection-free record — otherwise the
+        # immutable rule version would reference something that does not exist.
+        cited_evidence = client.post(
+            "/api/v1/rag/evidence?actor=test-analyst",
+            json={
+                "id": "TEST-EVIDENCE-001",
+                "title": "Test high packet-rate evidence",
+                "sourceType": "MITRE ATT&CK",
+                "sourceId": "T1046",
+                "trust": "high",
+                "excerpt": "Reconnaissance produces abnormally high packet rates.",
+                "purpose": "Justify the packet-rate candidate rule.",
+                "keywords": ["Port Scan", "packets_per_second"],
+                "publishedAt": "2026-07-19T00:00:00+08:00",
+            },
+        )
+        assert cited_evidence.status_code == 201
 
         candidate = client.post(
             "/api/v1/rules",
